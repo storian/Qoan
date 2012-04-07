@@ -29,8 +29,14 @@ $VERSION = '0.01';
 
 @ISA = qw| Exporter |;
 
-@EXPORT = @EXPORT_OK = qw| request  session  user |;
+@EXPORT = @EXPORT_OK = qw| request  session  user  controller  get_action_map |;
 
+
+
+sub controller
+{
+	return;
+}
 
 
 sub get_action_map
@@ -39,22 +45,22 @@ sub get_action_map
 }
 
 
-sub controller_env
-{
-	return;
-}
+#sub controller_env
+#{
+#	return;
+#}
 
 
-sub controller_report
-{
-	return;
-}
+#sub controller_report
+#{
+#	return;
+#}
 
 
-sub controller_warn
-{
-	return;
-}
+#sub controller_warn
+#{
+#	return;
+#}
 
 
 1;

@@ -1,5 +1,5 @@
 
-package Qoan::Interface::DefaultView;
+package Qoan::Interface::IView_QoanView;
 
 # Qoan::Interface::DefaultView
 # 
@@ -9,16 +9,51 @@ package Qoan::Interface::DefaultView;
 use strict;
 use Qoan::Interface ();
 
-use Qoan::View;
+#use Qoan::View;
 
 our $VERSION = '0.03';
 our @ISA = qw| Qoan::Interface |;
 our @EXPORT = qw| render |;
 
 
+my $renderer;
+
+
+sub accessor
+{
+	my( $controller ) = shift();
+	
+	$renderer = shift() if ref( $_[ 0 ] ) eq 'Qoan::View' && ! defined( $renderer );
+	
+	return $renderer unless @_;
+	return $controller->component( @_ );
+}
+
+
+sub _before_new
+{
+	my( $controller, $main_cfg, $caller_cfg, @init );
+	
+	$controller = shift(); 
+	
+	return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
+	
+	#$caller_cfg = $controller->caller_config;
+	#$main_cfg = $controller->main_config;
+	
+	#@init = $controller->retrieve_config( $caller_cfg, 'component:view:init' ) ||
+	#	$controller->retrieve_config( $main_cfg, 'component:view:init' );
+
+	
+	#$controller->view( 'settings:init' => $controller->env( 'component:view:init' );
+	
+	return 1;
+}
+
+
 sub render
 {
-	my( $controller, %params, @publish_context );
+	my( $controller, %params, $view, %renderer_vals );
 	
 	$controller = shift();
 	%params = @_;  # view_start, sources
@@ -30,35 +65,23 @@ sub render
 		return;
 	}
 	
-	unless ( $params{ 'sources' }->[ 0 ] )
+	unless ( ref( $params{ 'sources' } ) eq 'ARRAY' && $params{ 'sources' }->[ 0 ] )
 	{
 		$controller->warn( 'No view sources received by call to render' );
 		return;
 	}
 	
-# Exporting reporting and env access routines to view component.
-# Note that these can't be used inside the renderer package itself, but
-# will be available for any eval'ed view code.
-	$controller->report( 'Aliasing controller access subs to Qoan::View..' );
-	
-# NOTE  this only checks the SERVER setting in the env.
-#  Should the interface be flexible enough to accept the view as a contextual component?
-	@publish_context = $controller->env( 'server:view:publish' );
-	
-# The unsightly shift is necessary for calls of the form $renderer->routine.
-# None of these routines should receive refs as parameters.
-	#local *Qoan::View::controller_env =    sub {  shift() if ref( $_[ 0 ] );  $controller->env( @_ );  };
-	#local *Qoan::View::controller_report = sub {  shift() if ref( $_[ 0 ] );  $controller->report( @_ );  };
-	#local *Qoan::View::controller_warn =   sub {  shift() if ref( $_[ 0 ] );  $controller->warn( @_ );  };
-	
-	no strict 'refs';
-	local *{ 'Qoan::View::controller_' . $_ } = sub {  shift() if ref( $_[ 0 ] );  $controller->$_( @_ );  }
-		for @publish_context;
-	use strict 'refs';
-	
-	
 # Render.
-	return Qoan::View::render_view( %params );
+	#$view = Qoan::View::render_view( %params );
+	#$view = $controller->view->render_view( %params );
+	$view = $renderer->render_view( %params );
+	
+# Store renderer env values post-render to controller env.
+	#%renderer_vals = $controller->view->env();
+	#$renderer_vals{ "renderer:postrender:$_" } = delete $renderer_vals{ $_ } for keys %renderer_vals;
+	#$controller->env( %renderer_vals );
+	
+	return $view;
 }
 
 

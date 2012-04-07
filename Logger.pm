@@ -124,8 +124,13 @@ sub _capture_off
 	{
 # Note, goes to real STDERR.
 		warn( q|Logger received request to turn off output capture when output capture is not on| );
+		return;
 	}
-	elsif ( untie( *STDERR ) && open( STDERR, ">&", $real_stderr ) )
+	
+	#undef *HEYA;
+	#undef *REPORT;
+	
+	if ( untie( *STDERR ) && open( STDERR, ">&", $real_stderr ) )
 	{
 		$capturing_output = 0;
 		$redirector = '';
@@ -164,7 +169,10 @@ sub _capture_on
 # the next open(), the warning happens.  Or at least something in it happens, because the
 # following line does not raise the warning.  It does, however, prevent the Qoan::View
 # (and presumably any other code's) file open()s from raising the warning.
+# 3/17/12: it actually does raise the warning, so using no-warnings suppression.
+		no warnings 'io';
 		open( HEYA, '<', '/home/logs/error_log' );
+		use warnings 'io';
 		
 		#select( STDERR );
 		$| = 1;

@@ -16,7 +16,7 @@ our $VERSION = '0.01';
 our( @ISA, @EXPORT, @EXPORT_OK );
 
 #@ISA = qw| Qoan::Helper |;
-@EXPORT = @EXPORT_OK = qw| _before_load  _after_load  _cleanup  accessor |;
+@EXPORT = @EXPORT_OK = qw| accessor  _after_new  _before_new  _cleanup |;
 
 
 # Defaults to returning undef for components which do not require instantiation.
@@ -26,18 +26,18 @@ sub accessor
 }
 
 
-# For interfaces which define _before_load, _after_load defaults to returning
+# For interfaces which define _before_new, _after_new defaults to returning
 # a true value (which is success for _load_component).
-sub _after_load
+sub _after_new
 {
 	return 1;
 }
 
 
-# Components which require instantiation should overload _before_load and
+# Components which require instantiation should overload _before_new and
 # return a true value.  A false value indicates load success (interface loaded
 # but instantiation not required).
-sub _before_load
+sub _before_new
 {
 	return 0;
 }
@@ -60,7 +60,7 @@ sub import
 	
 	if ( $component =~ m|\W| )
 	{
-		$controller->warn( qq|Received component name $component contains characters illegal for subroutine names| );
+		warn( qq|Received component name $component contains characters illegal for subroutine names| );
 		return 0;
 	}
 	
@@ -71,21 +71,23 @@ sub import
 # names are set in the Request Manager.  Not used currently.
 	#%export_map = (
 	#	'accessor' => ( $controller->env( "component:$component:accessor_alias" ) || $component ),
-	#	'_after_load' => "_${component}_after_load",
-	#	'_before_load' => "_${component}_before_load",
+	#	'_after_new' => "_${component}_after_new",
+	#	'_before_new' => "_${component}_before_new",
 	#	'_cleanup' => "_${component}_cleanup",
 	#	);
 	
 	no strict 'refs';
 	
 	push( @exports, @{ "$pkg\::EXPORT" }, @EXPORT );
-	#$controller->_report( "exports: @exports" );
+	#$controller->report( "exports: @exports" );
+		
+	#$controller->report( "Aliasing following routines in $pkg to $call_pkg:" ) if @exports;
 	
 	for ( @exports )
 	{
 		if ( m|\W| )
 		{
-			$controller->warn( qq|Subroutine for import "$_" contains characters illegal for subroutine names| );
+			warn( qq|Subroutine for import "$_" contains characters illegal for subroutine names| );
 			next;
 		}
 		
@@ -94,7 +96,9 @@ sub import
 		#$import_name = ( $controller->env( "component:$component:accessor_alias" ) || $component ) if m|^accessor$|;
 		if ( m|^accessor$| )
 		{
-			$import_name = $controller->env( "component:$component:accessor_alias" ) if $controller->can( 'env' );  # SERVER COMPONENT ?
+# NOTE  Commenting out call to controller env as of March 2012.
+#       "if $controller->can( 'env' )" clause is wrong.  Check should be "if_in_request", "if_not_starting_up", etc
+			#$import_name = $controller->env( "component:$component:accessor_alias" ) if $controller->can( 'env' );
 			$import_name ||= $component;
 		}
 		else
@@ -107,20 +111,22 @@ sub import
 # Uses routine in base Interface package (this) if named routine is undefined in subclass.
 		if ( defined( &{ "$pkg\::$_" } ) )
 		{
-			#$controller->report( "Aliasing: $pkg\::$_ => $call_pkg\::$import_name" );
+			#$controller->report( " $_ => $import_name" );
 			*{ "$call_pkg\::$import_name" } = \&{ "$pkg\::$_" };
 		}
 		elsif ( defined( &{ __PACKAGE__ . "\::$_" } ) )
 		{
-			#$controller->report( "Aliasing: @{[ __PACKAGE__ ]}\::$_ => $call_pkg\::$import_name" );
+			#$controller->report( " $_ => $import_name" );
 			*{ "$call_pkg\::$import_name" } = \&{ __PACKAGE__ . "\::$_" };
 		}
 		else
 		{
-			$controller->warn( "Routine $_ (to export from $pkg to $call_pkg) is not defined." );
+			warn( "Routine $_ (to export from $pkg to $call_pkg) is not defined." );
 		}
 		
 		return 0 unless defined( &{ "$call_pkg\::$import_name" } );
+		
+		$import_name = '';
 	}
 	
 	return 1;

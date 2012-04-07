@@ -1,5 +1,5 @@
 
-package Qoan::Interface::DefaultSession;
+package Qoan::Interface::ISession_QoanModelMinicache;
 
 use strict;
 
@@ -15,7 +15,7 @@ use Qoan::Interface ();
 our @ISA = qw| Qoan::Interface |;
 our @EXPORT = qw| create |;
 
-my( $accessor );
+#my( $accessor );
 
 
 sub accessor
@@ -25,7 +25,7 @@ sub accessor
 }
 
 
-sub _after_load
+sub _after_new
 {
 	my( $controller, $session, %session_vals, $userid_variable );
 	
@@ -45,22 +45,26 @@ sub _after_load
 # to env, the following should NOT overwrite it (env values are not changeable
 # after the request handling has started).
 	%session_vals = $session->get;
-	$controller->$accessor( %session_vals ); # unless $controller->env( $accessor );
-	%session_vals = $controller->$accessor( 'data' );
+	$controller->session( %session_vals ); # unless $controller->env( $accessor );
+	%session_vals = $controller->session( 'data' );
 	
 	$controller->report( "** added to env:  $_ => $session_vals{ $_ }" ) for sort keys %session_vals;
+	
+# Gives access to the Session interface to the Action Manager.
+	$controller->publish( 'action_manager' => 'session' );
+	$controller->publish( 'action_manager' => 'session_create' );
 	
 # The session must publish the user ID to where the default user interface can find it.
 	if ( $userid_variable = $controller->env( 'userid_variable' ) )
 	{
-		$controller->env( $userid_variable => $controller->$accessor( $userid_variable ) );
+		$controller->env( $userid_variable => $controller->session( $userid_variable ) );
 	}
 	
 	return 1;
 }
 
 
-sub _before_load
+sub _before_new
 {
 	my( $controller, $sessionid_variable, $cookie, $sessionid );
 	
@@ -73,9 +77,9 @@ sub _before_load
 	
 # If we are in context loading stage, Session ID will be in HTTP cookie; otherwise
 # we are creating a new session, so check for a new ID.
-	$sessionid = ( $controller->env( 'request_stage' ) == $controller->_load_stage )
+	$sessionid = ( $controller->request_stage( 'current' => 'load' ) )
 		? ( $cookie =~ m|$sessionid_variable=([^;\s]+)| )[ 0 ]
-		: $controller->$accessor( 'new_id' );
+		: $controller->session( 'new_id' );
 	
 	$sessionid = '' unless defined $sessionid;
 	$sessionid =~ s|\s||g;
@@ -86,17 +90,23 @@ sub _before_load
 		return 0;
 	}
 	
+# Client might pass ID for nonexistant session.  Delete such IDs in Load stage.
+	if ( $sessionid && $controller->request_stage( 'current' => 'load' ) )
+	{
+		$sessionid = undef unless -e $controller->session( 'store' ) . $sessionid;
+	}
+	
 # Store the session object constructor args to functional env.
 	if ( $sessionid )
 	{
-		$controller->$accessor( 'id' => $sessionid );
-		$controller->$accessor( 'settings:init' => [
-			'source' => $controller->$accessor( 'store' ) . $sessionid,
+		$controller->session( 'id' => $sessionid );
+		$controller->session( 'settings:init' => [
+			'source' => $controller->session( 'store' ) . $sessionid,
 			'mode' => 'RW' ] );
 	}
 	
 # Load object criteria.
-	return 1 if $controller->$accessor( 'id' ) && $controller->$accessor( 'init' );
+	return 1 if $controller->session( 'id' ) && $controller->session( 'init' );
 	return 0;
 }
 
@@ -115,11 +125,11 @@ sub _cleanup
 		'last_request_at' => time() );
 	
 # Set session values in functional env.
-	$controller->$accessor( %set );
+	$controller->session( %set );
 	
 # Set session object values from functional env, and then cache to file.
-	$controller->$accessor->set( $controller->env( $accessor ) );
-	$controller->$accessor->cache;
+	$controller->session->set( $controller->env( 'session' ) );
+	$controller->session->cache;
 }
 
 
@@ -130,15 +140,15 @@ sub create
 	$controller = shift();
 	$sessionid = shift();
 	
-	return if ref( $controller->$accessor );
+	return if ref( $controller->session );
 	
 # Create session ID if not submitted and not in functional env.
-	unless ( $sessionid ||= $controller->$accessor( 'settings:new_id' ) )
+	unless ( $sessionid ||= $controller->session( 'settings:new_id' ) )
 	{
 		my( $id_generator );
 		
 # This is an optional helper.
-		if ( $id_generator = $controller->$accessor( 'id_generator' ) )
+		if ( $id_generator = $controller->session( 'id_generator' ) )
 		{
 			$sessionid = $controller->$id_generator;
 		}
@@ -152,19 +162,19 @@ sub create
 			$controller->report( "Generated Session ID: $sessionid" );
 		}
 		
-		$controller->$accessor( 'settings:new_id' => $sessionid );
+		$controller->session( 'settings:new_id' => $sessionid );
 	}
 	
 # Abort if no ID.
-	unless ( $controller->$accessor( 'new_id' ) )
+	unless ( $controller->session( 'new_id' ) )
 	{
 		$controller->warn( "Failed to find or generate new session ID" );
 		return 0;
 	}
 	
 # Create session.
-	$controller->_load_component( $accessor );
-	$created = ref( $controller->$accessor );
+	$controller->_load_component( 'session' );
+	$created = ref( $controller->session );
 	
 # Create cookie header to transmit session ID to client.
 	if ( $created )
@@ -195,15 +205,15 @@ sub create
 }
 
 
-sub set_name
-{
-	#return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
-# Shift off evoker.
-	shift();
-	
-	$accessor = shift() unless defined $accessor;
-	return $accessor;
-}
+#sub set_name
+#{
+#	#return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
+## Shift off evoker.
+#	shift();
+#	
+#	$accessor = shift() unless defined $accessor;
+#	return $accessor;
+#}
 
 
 1;

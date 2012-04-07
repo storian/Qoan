@@ -1,5 +1,5 @@
 my( $s );
 
-$s = $renderer->controller_env( $params[ 0 ] );
+$s = $renderer->qoan( 'env', $params[ 0 ] );
 
 $s;

@@ -40,7 +40,7 @@ sub new
 	$class = shift();
 	%cfg = @_;
 	
-	$cfg{ 'mode' } ||= 'RO'; # unless $cfg{ 'mode' };
+	$cfg{ 'mode' } ||= 'RO';
 	
 # Closure.
 	$mini = sub {
@@ -48,22 +48,46 @@ sub new
 		my $package = __PACKAGE__;
 		return undef if ( caller( 1 ) )[ 3 ] !~ m|$package|;  # Allow only Private callers.
 		
-		my( $index, $value ) = @_;
+		my( $index, $value, @keypath, $loc );
+		$index = shift();
+		$value = shift() || '';
 		
 # Return all set values if none specified.
 		return %cache if ! $index;
 		
-# Cfg access, read-only (as in prevents changing of written values).
+# Cfg access, read-only (as in, prevents changing of written values).
 		return $cfg{ $index } if exists $cfg{ $index };
+		
+# Compound index processing.
+		@keypath = split( ':', $index );
+		$index = pop( @keypath );
+		$loc = \%cache;
+		
+		for ( @keypath )
+		{
+			$loc->{ $_ } = { } unless defined $loc->{ $_ };
+			$loc = $loc->{ $_ };
+		}
 		
 # Cache write access.
 		if ( $value && $cfg{ 'mode' } eq 'RW' )
 		{
-			$cache{ $index } = $value;
-			$cfg{ 'dirty' } = 1;
+			if ( ref( $loc->{ $index } ) eq 'ARRAY' && ! ref $value )
+			{
+				push( @{ $loc->{ $index } }, $value );
+				$cfg{ 'dirty' } = 1;
+			}
+			else
+			{
+				$loc->{ $index } = $value;
+				$cfg{ 'dirty' } = 1;
+			}
 		}
 		
-		return $cache{ $index };
+# Return last index's value.
+		return %{ $loc->{ $index } } if ref( $loc->{ $index } ) eq 'HASH';
+		return @{ $loc->{ $index } } if ref( $loc->{ $index } ) eq 'ARRAY';
+		return $loc->{ $index } if exists ${ $loc }{ $index };
 		};
 	
 	bless $mini;
@@ -158,13 +182,7 @@ sub get
 	$index = shift();
 	
 	return $mini->() if ! $index;
-	
-# Note that an empty index gets the entire cache value set.
-	$thing = $mini->( $index );
-	
-	return %{ $thing } if ref( $thing ) eq 'HASH';
-	return @{ $thing } if ref( $thing ) eq 'ARRAY';
-	return $thing;
+	return $mini->( $index );
 }
 
 
@@ -249,6 +267,9 @@ sub _parse_lines
 	for ( @{ $lines } )
 	{
 		#print "line ==$_";  # has endline
+# New, empty files apparently pass a single undefined "line".  Skip it.
+		next unless defined $_;
+		
 # Skip line if only whitespace or if commented out (#, /*, //, ;).
 		next if m|^\s*$| ||
 			m|^\s*#| ||
