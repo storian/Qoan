@@ -71,7 +71,7 @@ BEGIN
 		my( $store, $k, $v, @keypath, $index, $loc, $i );
 		
 # Only env may access the base closure.
-		return unless __PACKAGE__->_allowed_caller( 'eq' => [ 'Qoan::Controller::env' ] );
+		return unless __PACKAGE__->_allowed_caller( 'eq' => [ 'Qoan::Controller::env', 'Qoan::Controller::publish' ] );
 		
 		$store = \%env_base;
 		return %{ $store } unless @_;
@@ -138,7 +138,7 @@ BEGIN
 		'component_load_order' => [ qw| request  session  user | ],
 # NOTE  that the config tool ALWAYS loads first, so does not appear in server_load_order.
 		'server_load_order'    => [ qw| logger  view | ],
-		'qoan_view_store'      => 'views/',
+		'qoan_view_store'      => 'views/shared/',
 		'uri_source_header'    => 'request_uri',
 		'sessionid_variable'   => 'qoan_session',
 		'userid_variable'      => 'qoan_user',
@@ -178,12 +178,21 @@ BEGIN
 }
 
 
-# Just being present and accounted for.
+# Name:    DESTROY
+# Purpose: Just being present and accounted for.
+#
 sub DESTROY
 {
 	;
 }
 
+
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _action_check
 {
 	my( $q, $manager, $action, %checks, @order, $handler, $check_ok );
@@ -239,6 +248,12 @@ sub _action_check
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _action_cleanup
 {
 	my( $q );
@@ -249,6 +264,12 @@ sub _action_cleanup
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _action_execute
 {
 	my( $q, $manager, $action, $has_handler, $handler, $exec_ok );
@@ -256,7 +277,7 @@ sub _action_execute
 	$q = shift();
 	$exec_ok = 0;
 	
-	$manager = $q->env( 'action_manger:name' );
+	$manager = $q->env( 'action_manager:name' );
 	$action = $q->env( 'action:name' );
 	
 # Verify action exists in map.
@@ -270,10 +291,11 @@ sub _action_execute
 	$handler = ( $q->action_map( "$action:handler" ) || $action ) if $action;
 	
 # Change handler value to code ref if it is a string.
+	#$q->report( 'setting code ref: ' .$manager . '::' . $handler );
 	if ( $manager && $handler && ref( $handler ) ne 'CODE' )
 	{
 		no strict 'refs';
-		$handler = \&{ $manager . '::' . $handler };
+		$handler = \&{ "$manager\::$handler" } if defined( &{ "$manager\::$handler" } );
 	}
 	
 	if ( ref( $handler ) ne 'CODE' )
@@ -316,6 +338,12 @@ sub _action_execute
 #	.
 # usage:
 #	.
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _action_identify ($)
 {
 	my( $q, %map, @order, $i, $req_uri );
@@ -394,6 +422,12 @@ sub _action_identify ($)
 
 # method ACTION_MAP
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  For Request context only (does not use $handler_base).
+#
 sub action_map
 {
 	my( $q, %map, $can_edit, $flatten, $caller );
@@ -439,6 +473,12 @@ sub action_map
 #	Subroutine caller permission hash reference, with elements:
 #	 ???
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _allowed_caller
 {
 	my( $self, %criteria, $caller, $callee, $ok, $msg );
@@ -502,24 +542,48 @@ sub _allowed_caller
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub app_config
 {
 	return $app_config;
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub app_dir
 {
 	return $app_dir;
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub app_script
 {
 	return $app_script;
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub app_package
 {
 	return $app_pkg;
@@ -542,6 +606,12 @@ sub app_package
 # called by non-object-accessor: returns env component settings - requires IDing the object e.g. "request" parameter
 # NO - not useful because it requires id'ing the object. called by non-object_accessor with 'DATA' parameter: returns object values from env
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub component ($;@)
 {
 	my( $q, @params );
@@ -550,7 +620,7 @@ sub component ($;@)
 	my( $load_obj, $unload_obj, $get_obj, $data_call, $settings_call );
 	
 	$q = shift();
-	$q = $handler_base if ! ref( $q ) && $q eq __PACKAGE__;
+	$q = $handler_base if $q eq __PACKAGE__;
 	
 # Note, $writing and $reading are used with settings and data only.
 	@params = @_;
@@ -655,13 +725,19 @@ sub component ($;@)
 #	Optionally: a value key;
 #	  or list of hash refs of env settings and config file names to load.
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub env
 {
 	my( $q, $editable, $reading, $cfg_load, $caller, %writing );
 	
 	$q = shift();
 # Class method call style means use handler base object.
-	$q = $handler_base if ! ref( $q ) && $q eq __PACKAGE__;
+	$q = $handler_base if $q eq __PACKAGE__;
 	
 	$editable = 0;
 	$reading = '';
@@ -716,8 +792,49 @@ sub env
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
+sub _error_alert
+{
+	my( $q );
+	
+	$q = shift();
+	$q = $handler_base if $q eq __PACKAGE__;
+	
+	if ( $q->env( 'alert_on_error:errorlog' ) )
+	{
+		$q->flush_captured;
+	}
+	
+	if ( $q->env( 'alert_on_error:email' ) )
+	{
+		my( $sent, %email_parts );
+		
+		$email_parts{ 'body' } = $q->captured_output;
+		$email_parts{ 'from' } = $q->env( 'alert_on_error:email:from' );
+		$email_parts{ 'to' } = $q->env( 'alert_on_error:email:to' );
+		$email_parts{ 'subject' } = $q->env( 'alert_on_error:email:subject' );
+		
+		$q->load_helper( 'Qoan::Helper::' . $q->env( 'alert_on_error:email:helper' ) );
+		$sent = $q->_send_email( %email_parts );
+		
+		warn( "Error alert email failed to send." ) unless $sent;
+	}
+}
+
+
 # method _FLATTEN
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _flatten
 {
 # WARN  HACK SOLUTION to the problem of returning "flattened" action map to action stage handlers.
@@ -778,6 +895,12 @@ sub _flatten
 #	array ref of option names
 #	array ref of received option values, and optionally names
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _handle_params
 {
 	#return undef unless $c->_allowed_caller( _PRIVATE() );
@@ -820,6 +943,12 @@ sub _handle_params
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub import
 {
 	my( $class, %start_config, $ok, %load_cfg, $server );
@@ -833,29 +962,14 @@ sub import
 	
 # USE statement parameters.
 	%env_startup = @_;
-#	%env_startup = __PACKAGE__->_flatten( %env_startup );
-	#print STDERR " :start: $_ => $env_startup{ $_ }\n" for sort keys %env_startup;
-	
-#	%env_default = __PACKAGE__->_flatten( %env_default );
-	#print STDERR " :deflt: $_ => $env_default{ $_ }\n" for sort keys %env_default;
 	
 # UNTAINT %env_startup !!
 # Main Config - file name only ???
 # Caller Config - full path allowed.
 # Server - string or hash ref..
 	
-#	$start_config{ $_ } = $env_default{ $_ } for grep { /^component:config/ } keys %env_default;
-#	$start_config{ $_ } = $env_startup{ $_ } for grep { /^component:config/ } keys %env_startup;
-	#print STDERR " :cfg__: $_ => $start_config{ $_ }\n" for sort keys %start_config;
 	$start_config{ $k } = $v while ( $k, $v ) = each %{ $env_default{ 'component' }->{ 'config' } };
 	$start_config{ $k } = $v while ( $k, $v ) = each %{ $env_startup{ 'component' }->{ 'config' } };
-	
-#	for ( keys %start_config )
-#	{
-#		#$shorten = ( $_ =~ m|(\w+)$| )[ 0 ];
-#		$start_config{ ( $_ =~ m|(\w+)$| )[ 0 ] } = delete( $start_config{ $_ } );
-#	}
-	#print STDERR " :cfg__: $_ => $start_config{ $_ }\n" for sort keys %start_config;
 	
 # Load Config tool.
 	if ( $start_config{ 'module' } eq 'Qoan::Config' )
@@ -870,7 +984,6 @@ sub import
 	
 # Config tool MUST load successfully.
 	die "Failed to load config tool $start_config{ 'component:config:module' }" unless $ok;
-	#$ok = 0;
 	
 # USE statement params can include 'component:config:use_file', which indicates that the
 # Controller must load "env_startup" from a file.
@@ -882,8 +995,6 @@ sub import
 	if ( $start_config{ 'use_file' } )
 	{
 		%env_startup = __PACKAGE__->retrieve_config( $start_config{ 'use_file' } );
-		#%env_startup = __PACKAGE__->_flatten( %env_startup );
-		#$env_startup{ "component:config:$_" } = $start_config{ $_ } for keys %start_config;
 		$env_startup{ 'component' }->{ 'config' }{ $k } = $v while ( $k, $v ) = each %start_config;
 	}
 	
@@ -900,17 +1011,10 @@ sub import
 	for ( \%env_default, $qoan_base_config, $app_config, \%env_startup )
 	{
 		next unless $_;  # Skip config file names if empty.
-		#%load_cfg = ref( $_ ) eq 'HASH' ? %{ $_ } : Qoan::Controller->retrieve_config( $_ );
 		%load_cfg = ref( $_ ) eq 'HASH' ? %{ $_ } : __PACKAGE__->retrieve_config( $_ );
 		%load_cfg = __PACKAGE__->_flatten( %load_cfg );
 		__PACKAGE__->env( %load_cfg );
 	}
-	#print STDERR " :base_: $_ => $env_base{ $_ }\n" for sort keys %env_base;
-	
-	
-	
-# Default always includes config handler, logger, view renderer..
-	#$env_startup{ 'server_load_order' } ||= [ ];
 	
 	if ( ref( $env_base{ 'server_load_order' } ) eq 'ARRAY' )
 	{
@@ -930,13 +1034,13 @@ sub import
 		
 		$ok = 0;
 		$server = $env_base{ 'component' }->{ $_ };
+		warn "Component settings for $_ non-existant" unless ref( $server ) eq 'HASH';
 		
 # This block is for default Qoan packages, with no specified interface.
 		if ( ( $server->{ 'module' } || '' ) =~ m|^Qoan::| && ! $server->{ 'interface' } )
 		{
 			$ok = __PACKAGE__->_require( $server->{ 'module' } );
 			push @ISA, $server->{ 'module' };
-
 		}
 # This block is for any package with an interface, which is required for non-Qoan packages.
 		elsif ( $server->{ 'interface' } )
@@ -948,6 +1052,9 @@ sub import
 	}
 	
 	$used = 1;  # Can't call import again.
+	
+# Alert for startup errors.
+	__PACKAGE__->_error_alert if __PACKAGE__->captured_errors && __PACKAGE__->env( 'alert_on_error' );
 	
 	return 1;
 }
@@ -961,48 +1068,62 @@ sub import
 # usage:
 #	Self.
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub is_write_request ($)
 {
-	return unless ref $_[ 0 ];
-	return $_[ 0 ]->env( 'sys_env:request_method' ) eq 'POST';
+	my( $q ) = shift();
+	
+	return unless $q->request_stage;
+	return $q->env( 'sys_env:request_method' ) eq 'POST';
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _load_component ($$)
 {
-	my( $self, $component, %component, $new, $before_new, $after_new, $object, $accessor, $stored_ref );
+	my( $q, $component, %component, $new, $before_new, $after_new, $object, $accessor, $stored_ref );
 	
-# For Controller-level components, $self will be the controller package name.
-# For Request-Manager-level components, $self will be the Qoan controller object.
-	$self = shift();
+# For Controller-level components, $q will be the controller package name.
+# For Request-Manager-level components, $q will be the Qoan controller object.
+	$q = shift();
 	
 # This is the component NAME.
 	$component = lc( shift() );
 	%component = %{ shift() } if $_[ 0 ];  # SERVER COMPONENT ?
 	
-	return unless $self->_allowed_caller(
+	return unless $q->_allowed_caller(
 		'eq' => [ 'Qoan::Controller::import', 'Qoan::Controller::process_request' ],
 		#'=~' => [ 'Qoan::Interface::\w+::create' ]
 		'=~' => [ '^Qoan::Interface::\w+::\w+' ]  # Basically, allows interfaces to instantiate
 	    );
 	
 # Get component settings.
-	%component = $self->env( "component:$component" ) unless %component;
+	%component = $q->env( "component:$component" ) unless %component;
 	
 # Require interface module.  Import interface routines.
-	$self->report( "Requiring component interface: $component{ 'interface' }.." );
-	return 0 unless $self->_require( $component{ 'interface' } );
-	return 0 unless $component{ 'interface' }->import( $self, $component );
+	$q->report( "Requiring component interface: $component{ 'interface' }.." );
+	return 0 unless $q->_require( $component{ 'interface' } );
+	return 0 unless $component{ 'interface' }->import( $q, $component );
 	
 ## Pass request handler's environment name for component, if component
 ## allows aliases.
 #	if ( $component{ 'interface' }->can( 'set_name' ) )
 #	{
-#		$self->report( qq|Setting component's environment name to "$component"..| );
+#		$q->report( qq|Setting component's environment name to "$component"..| );
 #		$component{ 'interface' }->set_name( $component );
 #	}
 	
-	return 1 if $self->request_stage( 'current' => 'load' ) &&
+	return 1 if $q->request_stage( 'current' => 'load' ) &&
 		( $component{ 'on_load' } || '' ) eq 'interface_only';
 	
 # Routines imported from interface.
@@ -1013,53 +1134,59 @@ sub _load_component ($$)
 # must be loaded) or we skip component.
 # Skipping non-necessary component counts as a load SUCCESS.
 # It can also return contructor arguments as an ARRAY REF.
-	$self->report( "Running before-new handler.." );
-	return 1 unless $component{ 'init' } = $self->$before_new;
+	$q->report( "Running before-new handler.." );
+	return 1 unless $component{ 'init' } = $q->$before_new;
 	
 # Store init args if array ref was received.
 # WARN?  remove? have before_new handler insert directly via component call?
-	$self->env( "component:$component:init" => $component{ 'init' } )
+	$q->env( "component:$component:init" => $component{ 'init' } )
 		if ref( $component{ 'init' } ) eq 'ARRAY';
 	
 # Require component module.
-	$self->report( "Requiring component module: $component{ 'module' }.." );
-	return 0 unless $self->_require( $component{ 'module' } );
+	$q->report( "Requiring component module: $component{ 'module' }.." );
+	return 0 unless $q->_require( $component{ 'module' } );
 	
 # Instantiate.  Uses returned argument array ref, or arguments saved to functional env.
-	$self->report( 'Instantiating component object..' );
-	$component{ 'init' } = [ $self->env( "component:$component:init" ) ]
+	$q->report( 'Instantiating component object..' );
+	$component{ 'init' } = [ $q->env( "component:$component:init" ) ]
 		unless ref( $component{ 'init' } ) eq 'ARRAY';
 	$new = $component{ 'constructor' } || 'new';
 	return 0 unless $object = $component{ 'module' }->$new( @{ $component{ 'init' } } );
 	
 # After_New handler must return a true value to proceed.
-	$self->report( "Running after-new handler for $object.." );
-	return 0 unless $self->$after_new( $object );
+	$q->report( "Running after-new handler for $object.." );
+	return 0 unless $q->$after_new( $object );
 	
 # Supply object to accessor.
-	$self->report( 'Submitting object to accessor..' );
+	$q->report( 'Submitting object to accessor..' );
 	$accessor = $component{ 'accessor_alias' } || $component;
-	$stored_ref = ref( $self->$accessor( $object ) );
-	$self->report( "Ref from stored object: $stored_ref" );
+	$stored_ref = ref( $q->$accessor( $object ) );
+	$q->report( "Ref from stored object: $stored_ref" );
 	
 	return 1 if $stored_ref eq $component{ 'module' };
 	return 0;
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub load_helper
 {
-	my( $self, $helper, @helpers, $can_report, $msg, $ok );
+	my( $q, $helper, @helpers, $can_report, $msg, $ok );
 	
-	$self = shift();
+	$q = shift();
 	@helpers = @_;
 	
-	$can_report = $self->can( 'report' );
+	$can_report = $q->can( 'report' );
 	$ok = 1;
 	
 	for $helper ( @helpers )
 	{
-		$ok &&= $self->_require( $helper );
+		$ok &&= $q->_require( $helper );
 		
 # WARN  For some reason, running the following line as:
 #         $ok &&= $helper->import;
@@ -1070,7 +1197,7 @@ sub load_helper
 		$ok = 0 if $@;
 		
 		$msg = "Loading helper $helper.. " . ( $ok ? 'succeeded.' : "failed. $@" );
-		$can_report ? $self->report( $msg ) : print STDERR "$msg\n";
+		$can_report ? $q->report( $msg ) : print STDERR "$msg\n";
 		
 		last unless $ok;
 	}
@@ -1084,6 +1211,12 @@ sub load_helper
 #	Self.
 #	List of actions in name => ref or action name format.
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub map_action ($;@)
 {
 	my( $q, %action );
@@ -1101,6 +1234,12 @@ sub map_action ($;@)
 
 # method VALIDATION
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub map_check
 {
 	my( $q, %validation );
@@ -1118,6 +1257,12 @@ sub map_check
 
 # method ROUTE
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub map_route ($;@)
 {
 	my( $q, %route );
@@ -1135,6 +1280,12 @@ sub map_route ($;@)
 
 # method MAP_VIEW
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub map_view
 {
 	my( $q, %view );
@@ -1150,6 +1301,12 @@ sub map_view
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _method
 {
 	my( $q, $method, @params, $calling_pkg, %components, $component, %allowed, $env_allowed );
@@ -1176,6 +1333,7 @@ sub _method
 	
 	$component = 'action_manager' if $calling_pkg eq $q->env( 'action_manager:name' ) ||
 		$calling_pkg eq $q->app_package;
+	#$q->report( "Component making _method call: $component ($calling_pkg)" );
 	
 	unless ( $component )
 	{
@@ -1193,6 +1351,7 @@ sub _method
 	
 	for ( keys %allowed )
 	{
+		#$q->report( "checking published: $_ => $allowed{ $_ }" );
 		$method = shift( @params ) if @params && $params[ 0 ] eq $_;
 		#$env_allowed = 1 if $allowed{ $_ } eq 'env';
 	}
@@ -1214,6 +1373,12 @@ sub _method
 #	Optional config file paths, config settings hash refs.
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub new_request
 {
 	my( $class, %load_cfg, %env, %ro, %component, %action_map, %response, %publish, $q, $k, $v );
@@ -1225,7 +1390,7 @@ sub new_request
 	
 # Bootstrap accessor setting.
 # WARN  what if Controller.pm is subclassed?  how do we know which package has env in it?
-	$env{ 'closure_accessors' } = [ $class . '::env' ];
+	$env{ 'closure_accessors' } = [ $class . '::env', $class . '::publish' ];
 	
 # BEGIN REQUEST CONTEXT CLOSURE.
 	$q = sub {
@@ -1381,12 +1546,24 @@ sub new_request
 #	Self.
 #	Optional new status value.
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub ok
 {
 	return $_[ 0 ]->( 'ok' => $_[ 1 ] );
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub process_request ($;@)
 {
 	my( $q );
@@ -1434,8 +1611,10 @@ sub process_request ($;@)
 	}
 	
 # Get request header.
+# Prepend with slash and remove query string if any.
 	my $uri_temp = $q->env( 'sys_env:' . $q->env( 'uri_source_header' ) );
 	$uri_temp = "/$uri_temp" unless $uri_temp =~ m|^/|;
+	$uri_temp =~ s|\?.*$|| if $q->env( 'uri_source_header' ) eq 'request_uri';
 	$q->env( 'uri:complete' => $uri_temp );
 	
 # REQUEST PROCESSING, start report.
@@ -1738,6 +1917,13 @@ sub process_request ($;@)
 	#	;
 	#}
 	
+# From action section of action map (action name).
+	if ( ! $render_view && $q->env( 'action:name' ) )
+	{
+		$render_view = $q->action_map( $q->env( 'action:name' ) . ':view' );
+		$view_source = 'supplied by action' if $render_view;
+	}
+	
 # Action name or last segment of URI if using internal get action.
 	if ( ! $render_view && $q->env( 'action:route' ) )
 	{
@@ -1774,7 +1960,7 @@ sub process_request ($;@)
 		
 # Note that the following line works regardless of whether view:store
 # is a scalar or an array.
-		@view_store = $q->env( 'server:view:store' ) || $q->env( 'component:view:store' );
+		@view_store = $q->env( 'component:view:store' );
 		
 		for ( $i = $#view_store; $i >= 0; $i-- )
 		{
@@ -1922,28 +2108,29 @@ sub process_request ($;@)
 	
 # Admin alerts for requests handled with errors.
 # Does not send alert if debug report was returned to client.
-	if ( $q->captured_errors && $q->env( 'alert_on_error' ) && ! $return_debug )
-	{
-		if ( $q->env( 'alert_on_error:errorlog' ) )
-		{
-			$q->flush_captured;
-		}
-		
-		if ( $q->env( 'alert_on_error:email' ) )
-		{
-			my( $sent, %email_parts );
-			
-			$email_parts{ 'body' } = $q->captured_output;
-			$email_parts{ 'from' } = $q->env( 'alert_on_error:email:from' );
-			$email_parts{ 'to' } = $q->env( 'alert_on_error:email:to' );
-			$email_parts{ 'subject' } = $q->env( 'alert_on_error:email:subject' );
-			
-			$q->load_helper( 'Qoan::Helper::' . $q->env( 'alert_on_error:email:helper' ) );
-			$sent = $q->_send_email( %email_parts );
-			
-			warn( "Error alert email failed to send." ) unless $sent;
-		}
-	}
+	$q->_error_alert if $q->captured_errors && $q->env( 'alert_on_error' ) && ! $return_debug;
+	#if ( $q->captured_errors && $q->env( 'alert_on_error' ) && ! $return_debug )
+	#{
+	#	if ( $q->env( 'alert_on_error:errorlog' ) )
+	#	{
+	#		$q->flush_captured;
+	#	}
+	#	
+	#	if ( $q->env( 'alert_on_error:email' ) )
+	#	{
+	#		my( $sent, %email_parts );
+	#		
+	#		$email_parts{ 'body' } = $q->captured_output;
+	#		$email_parts{ 'from' } = $q->env( 'alert_on_error:email:from' );
+	#		$email_parts{ 'to' } = $q->env( 'alert_on_error:email:to' );
+	#		$email_parts{ 'subject' } = $q->env( 'alert_on_error:email:subject' );
+	#		
+	#		$q->load_helper( 'Qoan::Helper::' . $q->env( 'alert_on_error:email:helper' ) );
+	#		$sent = $q->_send_email( %email_parts );
+	#		
+	#		warn( "Error alert email failed to send." ) unless $sent;
+	#	}
+	#}
 	
 	return $q->ok;
 }
@@ -1952,11 +2139,19 @@ sub process_request ($;@)
 # method PUBLISH
 #	modeled on ENV
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub publish
 {
 	my( $q, $editable, $reading, %writing, $caller, %components, $component, %to_env );
 	
 	$q = shift();
+## Class method call style means use handler base object.
+#	$q = $handler_base if $q eq __PACKAGE__;
 	
 	$editable = 0;
 	$reading = '';
@@ -2019,6 +2214,7 @@ sub publish
 # Get component name.
 		for ( keys %components )
 		{
+			next unless $components{ $_ }{ 'interface' };
 			$component = $_ if $caller =~ m|^$components{ $_ }{ 'interface' }|;
 			last if $component;
 		}
@@ -2051,18 +2247,36 @@ sub publish
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub qoan_base_config
 {
 	return $qoan_base_config;
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub qoan_base_dir
 {
 	return $qoan_base_dir;
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub qoan_base_file
 {
 	return $qoan_base_file;
@@ -2071,6 +2285,12 @@ sub qoan_base_file
 
 # RESPONSE only allows the response body and status to be set by the process request
 # handler.  Any caller can set headers.
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub response ($;@)
 {
 	my( $q, $writing, $reading, $called_by_req_handler, %to_write, %headers, $header );
@@ -2113,6 +2333,12 @@ sub response ($;@)
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub request_stage
 {
 	my( $q, $check, $stage, @stages, $current );
@@ -2154,7 +2380,7 @@ sub request_stage
 }
 
 
-# method _REQUIRE  (private, class)
+# method _REQUIRE
 # purpose:
 #	To securely require a module.
 # usage:
@@ -2164,19 +2390,27 @@ sub request_stage
 #	This routine works only with the single value it receives.
 #	It returns only a true/false value generated separate from the input.
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _require
 {
-	my( $self, $module, $calling_pkg, $msg, $ok );
+	my( $q, $module, $calling_pkg, $msg, $ok );
 	
-# $self will be either a Qoan::Controller (or subclass) object, or package name.
-	$self = shift();
+# $q will be either a Qoan::Controller (or subclass) object, or package name.
+# As this routine runs prior to the Controller object being fully set up, it does
+# not rely on package reporting routines.
+	$q = shift();
 	$module = shift();
 	$calling_pkg = ( caller( 0 ) )[ 0 ];
 	
-	unless ( $module && $self )
+	unless ( $module && $q )
 	{
 		$msg = 'Module to load missing or package self-identification missing.';
-		#$self->can( 'warn' ) ? $self->warn( $msg ) : warn( $msg );
+		#$q->can( 'warn' ) ? $q->warn( $msg ) : warn( $msg );
 		warn $msg;
 		return 0;
 	}
@@ -2185,8 +2419,8 @@ sub _require
 	#if ( $module eq __PACKAGE__ )
 	#{
 	#	$msg = "Call to Require to load its own package from $calling_pkg";
-	#	#$self->warn( $msg ) if $self->can( 'warn' );
-	#	$self->can( 'warn' ) ? $self->warn( $msg ) : warn( $msg );
+	#	#$q->warn( $msg ) if $q->can( 'warn' );
+	#	$q->can( 'warn' ) ? $q->warn( $msg ) : warn( $msg );
 	#	return 0;
 	#}
 	
@@ -2197,7 +2431,7 @@ sub _require
 		$module !~ m|::\d| )        # Verifies allowed starting char on each segment.
 	{
 		$msg = "Module name $module failed name check";
-		#$self->can( 'warn' ) ? $self->warn( $msg ) : warn( $msg );
+		#$q->can( 'warn' ) ? $q->warn( $msg ) : warn( $msg );
 		warn $msg;
 		return 0;
 	}
@@ -2207,8 +2441,8 @@ sub _require
 	
 	if ( ! $ok )
 	{
-		$msg = "Error on @{[ ref $self ]} module $module require: $@";
-		#$self->can( 'warn' ) ? $self->warn( $msg ) : warn( $msg );
+		$msg = "Error on @{[ ref $q ]} module $module require: $@";
+		#$q->can( 'warn' ) ? $q->warn( $msg ) : warn( $msg );
 		warn $msg;
 		return 0;
 	}
@@ -2217,6 +2451,12 @@ sub _require
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub _route_compare ($$)
 {
 	my( $q, $route, $path, @route, $route_converted, @compared );
@@ -2246,6 +2486,12 @@ sub _route_compare ($$)
 }
 
 
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
 sub send_response
 {
 	my( $q, %response, %headers, @headers, $header_name );
@@ -2286,38 +2532,44 @@ sub send_response
 }
 
 
-sub _unload_component ($$)
+# Name:     x
+# Purpose:  x
+# Usage:    x
+# Security: x
+# Context:  x
+#
+sub _unload_component
 {
-	my( $self, $component, %component, $cleanup, $accessor, $object );
+	my( $q, $component, %component, $cleanup, $accessor, $object );
 	
-	$self = shift();
+	$q = shift();
 	$component = lc( shift() );
 	
-	return unless $self->_allowed_caller( 'eq' => [ 'Qoan::Controller::process_request' ] );
+	return unless $q->_allowed_caller( 'eq' => [ 'Qoan::Controller::process_request' ] );
 	
-	%component = $self->env( "component:$component" );
+	%component = $q->env( "component:$component" );
 	$accessor = $component{ 'accessor_alias' } || $component;
 	
 # If there's nothing to unload, we're good.
 # Note that the 'return_object' parameter string is passed only because
 # parameter-less calls to accessors from _unload_component will delete the
 # component.
-	unless ( $self->$accessor )
+	unless ( $q->$accessor )
 	{
-		$self->report( 'No object to unload.' );
+		$q->report( 'No object to unload.' );
 		return 1;
 	}
 	
 # Cleanup routine imported from interface.
 	$cleanup = "_${component}_cleanup";
 	
-	$self->report( 'Cleaning up for component..' );
-	return 0 unless $self->$cleanup;
+	$q->report( 'Cleaning up for component..' );
+	return 0 unless $q->$cleanup;
 	
 # Destroy component.
-	$self->report( 'Destroying component..' );
-	$object = $self->$accessor( 'remove' );
-	$self->report( "@{[ $object ? 'FAILED.' : 'destroyed.' ]}" );
+	$q->report( 'Destroying component..' );
+	$object = $q->$accessor( 'remove' );
+	$q->report( "@{[ $object ? 'FAILED.' : 'destroyed.' ]}" );
 	
 	return 1 unless $object;
 	return 0;

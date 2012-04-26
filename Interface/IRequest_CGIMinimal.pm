@@ -59,11 +59,11 @@ sub _after_new
 }
 
 
-# method _BEFORE_LOAD (public, object)
+# method _BEFORE_NEW (public, object)
 # purpose:
 #	Returns true value in order to prompt loading of request component.
 # usage:
-#	Receives controller reference, does not use it.
+#	Controller reference.
 
 sub _before_new
 {

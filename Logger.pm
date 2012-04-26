@@ -10,8 +10,8 @@ $VERSION = '0.03';
 #use Tie::Handle;
 #our @ISA = q| Tie::Handle |; 
 
-my( $real_stderr, $stderr_duped, $capturing_output, $passthrough, $redirector, $captured_output );
-my( @captured_errors );
+my( $real_stderr, $stderr_duped, $capturing_output, $passthrough, $redirector );
+my( $captured_output, @captured_errors, @ignore_errors );
 my( $dying ) = 0;
 
 
@@ -51,14 +51,6 @@ BEGIN
 			{
 				print @print, ( $capturing_output ? 'WARNING' : ( ) );
 			}
-			#if ( $capturing_output && ! $dying )
-			#{
-			#	print @print, 'WARNING';
-			#}
-			#elsif ( ! $capturing_output )
-			#{
-			#	print @print;
-			#}
 		};
 		
 		$SIG{ __DIE__ } = sub {
@@ -75,7 +67,7 @@ BEGIN
 }
 
 
-# In the even of an uncontrolled halt to execution (death) in the midst of
+# In the event of an uncontrolled halt to execution (death) in the midst of
 # catching output to $captured_output (inappropriately in the middle of work), restore
 # STDERR with the saved handle and write the log contents.
 END
@@ -108,7 +100,22 @@ sub capture_output
 
 sub captured_errors
 {
-	return @captured_errors;
+	my( @report, $captured, $ignore, $skip );
+	
+	for $captured ( @captured_errors )
+	{
+		$skip = 0;
+		
+		for $ignore ( @ignore_errors )
+		{
+			$skip = 1 if $captured =~ m|$ignore|;
+		}
+		next if $skip;
+		
+		push( @report, $captured );
+	}
+	
+	return @report;
 }
 
 
@@ -120,17 +127,18 @@ sub captured_output
 
 sub _capture_off
 {
-	if ( ! $capturing_output )
+	unless ( $capturing_output )
 	{
 # Note, goes to real STDERR.
-		warn( q|Logger received request to turn off output capture when output capture is not on| );
+		warn q|Logger received request to turn off output capture when output capture is not on|;
 		return;
 	}
 	
-	#undef *HEYA;
-	#undef *REPORT;
-	
-	if ( untie( *STDERR ) && open( STDERR, ">&", $real_stderr ) )
+# NOTE, if close( STDERR ) is omitted, following warning is raised:
+# "untie attempted while 2 inner references still exist".
+# This appears to be related to the REPORT handle used in TIEHANDLE;
+# However, closing STDERR is all that's needed to stop the warning.
+	if ( close( STDERR ) && untie( *STDERR ) && open( STDERR, ">&", $real_stderr ) )
 	{
 		$capturing_output = 0;
 		$redirector = '';
@@ -159,27 +167,25 @@ sub _capture_on
 	{
 		my $ok;
 		
-# A most interesting hack:
-# Without the following line, when opening a view file in Qoan::View, the following warning
-# is raised:
-#    Filehandle STDERR reopened as $file only for input at [path to]/Qoan/View.pm line 210.
+# Without the following open(), the following warning is raised, at some point:
+# 
+# "Filehandle STDERR reopened as [some symbol] only for input at [some perl module] line [?]"
 # 
 # Apparently this warning has to do with the order of filehandles expected by Perl.
 # Closing STDERR as is done here causes the expected order to change somehow, and so on
-# the next open(), the warning happens.  Or at least something in it happens, because the
-# following line does not raise the warning.  It does, however, prevent the Qoan::View
-# (and presumably any other code's) file open()s from raising the warning.
-# 3/17/12: it actually does raise the warning, so using no-warnings suppression.
+# the next open(), the warning happens.  Suppressing the warning.  The filehandle has
+# to stay open during execution (can't be closed again immediately).
 		no warnings 'io';
 		open( HEYA, '<', '/home/logs/error_log' );
 		use warnings 'io';
 		
-		#select( STDERR );
+		#select( STDERR );  # Now done in BEGIN block.
 		$| = 1;
 		$capturing_output = 1;
 		$passthrough = 0;
 		$redirector = caller( 2 ) ? ( caller( 2 ) )[ 3 ] : ( caller( 1 ) )[ 0 ];
 		$captured_output = '';
+		@captured_errors = ( );
 		
 		$ok = 0;
 		$ok = 1 if print "STDERR redirected to variable capture by $redirector";
@@ -198,7 +204,7 @@ sub _capture_on
 # pass-through is turned on.
 sub capturing
 {
-	shift();  # Remove controller reference
+	shift() if ref( $_[ 0 ] ) || $_[ 0 ] eq __PACKAGE__;  # Remove controller reference
 	
 	if ( scalar @_ )
 	{
@@ -216,10 +222,20 @@ sub flush_captured
 }
 
 
+sub ignore_errors
+{
+	shift() if ref( $_[ 0 ] ) || $_[ 0 ] eq __PACKAGE__;
+	
+	@ignore_errors = @_ if @_;
+	
+	return @ignore_errors;
+}
+
+
 # Pass-through is off by default.
 sub passthrough
 {
-	shift();  # Remove controller reference
+	shift() if ref( $_[ 0 ] ) || $_[ 0 ] eq __PACKAGE__;  # Remove controller reference
 	
 	if ( scalar @_ )
 	{
@@ -230,17 +246,27 @@ sub passthrough
 }
 
 
-sub print
-{
-	shift();  # Remove controller reference
-	return print @_;
-}
+#sub print
+#{
+#	shift() if ref( $_[ 0 ] ) || $_[ 0 ] eq __PACKAGE__;  # Remove controller reference
+#	return print @_;
+#}
 
 
 sub report
 {
-	shift();  # Remove controller reference
-	return print @_;
+	my( @msgs );
+	
+	shift() if ref( $_[ 0 ] ) || $_[ 0 ] eq __PACKAGE__;
+	@msgs = @_;
+	
+	unless ( $capturing_output )
+	{
+		$_ .= "\n" for @msgs;
+	}
+	#print $real_stderr "to real stderr:\n", @msgs;
+	
+	return print @msgs;
 }
 
 
@@ -252,9 +278,8 @@ sub stderr_duplicated
 
 sub warn
 {
-	shift();  # Remove controller reference
+	shift() if ref( $_[ 0 ] ) || $_[ 0 ] eq __PACKAGE__;  # Remove controller reference
 	warn @_;
-	#return print @_;
 }
 
 
@@ -266,7 +291,7 @@ sub PRINT
 {
 	my( $globref, $warning, $indents, $stack_idx, $caller_member, @msgs );
 	
-	$globref = shift();
+	$globref = shift() if ref $_[ 0 ];
 	
 	@msgs = @_;
 	
@@ -293,7 +318,7 @@ sub PRINT
 	}
 	
 # Print to real STDERR if pass-through is on.
-	print $real_stderr @msgs if $passthrough;
+	print $real_stderr @msgs if $passthrough || ! $capturing_output;
 	
 # Capture output.
 	$captured_output .= join( '', @msgs ) if $capturing_output;

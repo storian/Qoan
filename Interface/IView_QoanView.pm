@@ -8,13 +8,11 @@ package Qoan::Interface::IView_QoanView;
 
 use strict;
 use Qoan::Interface ();
-
 #use Qoan::View;
 
 our $VERSION = '0.03';
 our @ISA = qw| Qoan::Interface |;
 our @EXPORT = qw| render |;
-
 
 my $renderer;
 
@@ -32,21 +30,9 @@ sub accessor
 
 sub _before_new
 {
-	my( $controller, $main_cfg, $caller_cfg, @init );
-	
-	$controller = shift(); 
+	my( $controller ) = shift();
 	
 	return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
-	
-	#$caller_cfg = $controller->caller_config;
-	#$main_cfg = $controller->main_config;
-	
-	#@init = $controller->retrieve_config( $caller_cfg, 'component:view:init' ) ||
-	#	$controller->retrieve_config( $main_cfg, 'component:view:init' );
-
-	
-	#$controller->view( 'settings:init' => $controller->env( 'component:view:init' );
-	
 	return 1;
 }
 
