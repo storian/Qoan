@@ -1,0 +1,39 @@
+<h3>Advanced Filesystem Set-up</h3>
+
+<p><b>Configuration File</b>.  You can also set up a stand-alone file for configuration settings.  You can configure the application in the script file as well, so this is optional.
+
+<div class="code">
+touch qoandocs/qoandocs.config
+</div>
+
+<p><b>Local Qoan Directory</b>.  A local directory for Qoan code can be useful for purposes of isolation or of overriding Qoan code in the main installation.
+
+<div class="code">
+mkdir qoandocs/Qoan
+mkdir qoandocs/Qoan/ActionManager
+mkdir qoandocs/Qoan/Helper
+..etc.
+</div>
+
+<p><b>Security</b>.  I like setting up my web applications in a protected filesystem area, outside of the public one served by the HTTP server.  In this way I can protect application files from being served up inappropriately.  This practice also makes sense in the context of the URL virtualization that occurs in web application frameworks; often the point is <i>not</i> to provide the public with a literal path to the web resource, but rather one that makes sense conceptually.  Taking advantage of not being tied down to literal resource paths in order to improve security is a good idea IMV.
+
+<p>For my own apps, for Apache, I like to set up a redirect command in an .htaccess file inside my web public area, such as:
+
+<div class="code">
+RewriteEngine on
+RewriteBase /
+
+RewriteRule  ^qoandocs(.*) qoandocs.cgi
+</div>
+
+<p>Then I have the cgi file execute the application file which lives in the protected area:
+
+<div class="code">
+#!/usr/bin/perl
+
+print `perl /path/to/protected/qoandocs/qoandocs.pl`;
+</div>
+
+<p>(Note the application script file in this example has the .pl extension, as it does not need to be executed by the HTTP server directly.)
+
+<p>If you decide to use HTTP server redirection, it will only affect where you can put your Qoan application folder; it does not affect what goes on inside.

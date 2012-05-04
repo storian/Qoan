@@ -50,10 +50,6 @@ sub _after_new
 	
 	$controller->report( "** added to env:  $_ => $session_vals{ $_ }" ) for sort keys %session_vals;
 	
-# Gives access to the Session interface to the Action Manager.
-	$controller->publish( 'action_manager' => 'session' );
-	$controller->publish( 'action_manager' => 'session_create' );
-	
 # The session must publish the user ID to where the default user interface can find it.
 	if ( $userid_variable = $controller->env( 'userid_variable' ) )
 	{
@@ -71,6 +67,10 @@ sub _before_new
 	$controller = shift(); 
 	
 	return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
+	
+# Gives access to the Session interface to the Action Manager.
+	$controller->publish( 'action_manager' => 'session' );
+	$controller->publish( 'action_manager' => 'session_create' );
 	
 	$sessionid_variable = $controller->env( 'sessionid_variable' ) || '';
 	$cookie = $controller->env( 'sys_env:http_cookie' ) || '';
@@ -141,6 +141,7 @@ sub create
 	$sessionid = shift();
 	
 	return if ref( $controller->session );
+	$controller->report( 'No extant session..' );
 	
 # Create session ID if not submitted and not in functional env.
 	unless ( $sessionid ||= $controller->session( 'settings:new_id' ) )
@@ -175,6 +176,7 @@ sub create
 # Create session.
 	$controller->_load_component( 'session' );
 	$created = ref( $controller->session );
+	print STDERR "session created? $created";
 	
 # Create cookie header to transmit session ID to client.
 	if ( $created )
@@ -188,13 +190,15 @@ sub create
 			gmtime( time() + $controller->env( 'cookie:expires_in' ) ) );
 		
 		$sessionid_variable = $controller->env( 'sessionid_variable' );
-		$app_path = $controller->env( 'application_alias' );
+# Note, we prepend with uri:lead in case the Qoan redirector lives below the httpd docroot.
+		$app_path = $controller->env( 'uri:lead' ) .
+			'/' . $controller->env( 'application_alias' );
 		
 # Note the cookie is good for the entire /story application.  The session will
 # hold references to all story tracks the user creates.
 		$cookie = "$sessionid_variable=$sessionid; " .
 			"Expires=$expires; " .
-			"Path=/$app_path; " .
+			"Path=$app_path; " .
 			"Domain=.dysgasmia.net";
 		
 		$controller->response( 'headers:set-cookie' => $cookie );
@@ -203,17 +207,6 @@ sub create
 	return 1 if $created && $controller->response( 'headers:set-cookie' );
 	return 0;
 }
-
-
-#sub set_name
-#{
-#	#return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
-## Shift off evoker.
-#	shift();
-#	
-#	$accessor = shift() unless defined $accessor;
-#	return $accessor;
-#}
 
 
 1;

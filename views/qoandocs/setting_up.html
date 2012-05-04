@@ -1,0 +1,119 @@
+<h2>Setting Up</h2>
+
+<ul>
+<li><a href="#setup_qoan_code">Setting Up the Qoan Framework</a>
+<li><a href="#setup_app_components">Components of Qoan Application Set-up</a>
+<li><a href="#setup_sharing">Qoan Application Set-up and Resource Sharing</a>
+</ul>
+
+<a name="setup_qoan_code">&nbsp;</a>
+<h3>Setting Up The Qoan Framework</h3>
+
+<p>If Qoan is not part of your server's default Perl library<font color="red">*</font>, you will have to install it yourself.  This is nothing more than downloading the code and unpacking it to an appropriate directory.  If this is how you set Qoan up, you will have tell your scripts where to look for it:
+
+{{code_sample use_lib/}}
+
+<p class="note"><font color="red">*</font> And it probably won't be for some time as of this writing (Jan 2012), if ever.</p>
+
+<a name="setup_app_components">&nbsp;</a>
+<h3>Components Of Qoan Application Set-up</h3>
+
+<p>In a separate directory, the following are the components for any Qoan application, regardless of set-up:
+
+<ol>
+<li>A script file;
+<li>A views directory;
+<li>A configuration file;
+<li>A local Qoan directory, for any application-specific Qoan code.
+</ol>
+
+<p>
+<i>#1. A script file.</i>
+<br />
+<ul>
+<li>This file is required, as it is the application proper.
+<li>The control flow passes from the HTTP server to this script, and from the script to Qoan.
+<li>Due to the control flow, Qoan does not care what the file extension is.
+<li>LINKS??
+</ul>
+
+
+<p>
+<i>#2. A views directory.</i>
+<br />
+<ul>
+<li>In its default configuration, Qoan looks for a directory named <b>"views"</b> in the same directory as your script.
+<li>While a views location is required, the path/name is configurable.
+<li>LINKS??
+</ul>
+
+
+<p>
+<i>#3. A configuration file.</i>
+<br />
+<ul>
+<li>Optional.
+<li>Qoan applications can alternately:
+
+<ul>
+<li>use Qoan's default internal configuration, or
+<li>set configuration settings in the code file.
+</ul>
+
+<li>Note that Qoan's default configuration is sufficient only for very basic, read-only applications<font color="red">*</font>.
+<li>How you configure the application is up to your own ideas of convenience and efficiency.
+<li>LINKS??
+</ul>
+
+<p class="note"><font color="red">*</font> Of which this Qoan Documentation is an example, for the most part.</p>
+
+
+<p>
+<i>#4. A local Qoan directory.</i>
+<br />
+<ul>
+<li>Optional.
+<li>For advanced use; the purpose of local Qoan code would be to override or provide separation from Qoan code elsewhere.
+<li>LINKS??
+</ul>
+
+
+<a name="setup_sharing">&nbsp;</a>
+<h3>Qoan Application Set-up And Resource Sharing</h3>
+
+<p>The Qoan framework allows you to set up your applications singly, as a group, or somewhere in between.  This basically means in terms of shared configuration and resources.
+
+<h3>The "Stand-alone" Set-up</h3>
+
+<p>A stand-alone Qoan application wants to isolate its own configuration and resources.  This is basically what you'll get in following the application set-up described so far.
+
+<p>To reiterate, if you follow the described set-up so far, you will have, in a separate directory: an application code file, an optional configuration file, the views resources for your app, and possibly some app-specific Qoan code.  None of these resources will be available to any other Qoan applications you set up in the same way (that is, in other directories).
+
+<p>(Note that the assumption here has been that you will install the Qoan framework to another directory, and that this installation will be used in common by other applications.  You can make a <i>truly</i> stand-alone Qoan application by installing the Qoan framework to a sub-directory of your application directory, and having your app use that Qoan installation.)
+
+<p>To be stand-alone, the application must supply its own configuration, either in the config file or in the script itself.  Here is an example:
+
+{{code_sample allow_default_get/}}
+
+<p>LINKS TO EXAMPLE??
+
+
+<h3>The "Not Stand-alone" Set-up</h3>
+
+<p>Of course, the idea behind any framework is to lessen repetition, and this applies to application configuration and resources as well.  What if you want to manage several related applications?
+
+<p>Qoan provides default resources which are by default "off".  These resources are located with the Qoan installation.  In the case of Qoan's default configuration file, all options in the file are deactivated (commented out).  In the case of resources such as views, Qoan provides a default directory for storage, but provides no actual resource files.
+
+<p>If you have installed Qoan for yourself (if it is not part of your server's Perl library), then you have the option of storing shared resources for related applications with the Qoan installation, and Qoan will work that way by default.
+
+<p>If this is not an option for you, then you can configure the home directory for your related applications so that their resources are shared.  Component-wise, Qoan still uses the ones described above, but <i>where</i> they are might be a bit different in a "not stand-alone" setting.
+
+<p>An application script which is to be used for several related applications is likely to look pretty much like this:
+
+{{code_sample easiest_1/}}
+
+<p>LINKS TO EXAMPLES??
+
+
+
+{{/header_wrap}}

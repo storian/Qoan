@@ -1,0 +1,76 @@
+<!-- Note, no wrapping view reference here.  The parent will worry about that. -->
+
+<h3><b>TL;DR</b></h3>
+
+<p>A script that uses Qoan can be as simple as this:
+
+<div class="code">
+EXAMPLE #1
+
+use lib qw| /path/to/qoan |;
+
+use Qoan::Controller;
+
+Qoan::Controller->process_request;
+</div>
+
+<br />
+
+<p>A script this simple means that you must rely on Qoan's internal defaults.  But what if you do not want to do that?  There are several options for configuration:
+
+<p>Configure between instantiation and execution:
+
+<div class="code">
+EXAMPLE #2
+
+use lib qw| /path/to/qoan |;
+use Qoan::Controller;
+
+my $q = Qoan::Controller->new;
+
+# CONFIGURE QOAN HERE
+
+$q->process_request;
+</div>
+
+<br />
+
+<p>Some configuration options are available when Qoan is <b>used</b> into your script:
+
+<div class="code">
+EXAMPLE #3
+
+use lib qw| /path/to/qoan |;
+
+use Qoan::Controller 'main_config' => 'file.name', 'local_config' => 'file.name';
+
+Qoan::Controller->process_request;
+</div>
+
+<br />
+
+<p>You can send config values as parameters to the main execution routine:
+
+<div class="code">
+EXAMPLE #4
+
+use lib qw| /path/to/qoan |;
+use Qoan::Controller;
+
+Qoan::Controller->process_request( 'config.file.name', \%config_options );
+</div>
+
+<br />
+
+<p>You can send config values as parameters on instantiation, too.
+
+<div class="code">
+EXAMPLE #5
+
+use lib qw| /path/to/qoan |;
+use Qoan::Controller;
+
+my $q = Qoan::Controller->new;
+
+$q->process_request( 'config.file.name', \%config_options );
+</div>

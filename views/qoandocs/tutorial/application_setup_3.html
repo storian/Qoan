@@ -1,0 +1,34 @@
+<h3>Step 3: Alternate set-up information for apps</h3>
+
+<p>
+<b>Can I change the names of the application files?</b><br />
+<ul>
+<li>You can change the names of the script and configuration files, but they must share the same name (other than their file extensions).  If you change the script's name, you must also change the line in the .qoan_applications file identifying the application's script file.
+<li>You can change the views directory name, but you must declare the new name in the view renderer component's configuration (in the app config file or the script if you are doing the configuration in the code).
+<li>You cannot change the .htaccess file name of course.  You cannot change the Qoan directory name.
+</ul>
+
+<p>
+<b>Can I delete any of these files?</b><br />
+As a matter of fact, you can delete .htaccess file, the config file, and the Qoan directory if you do not need them.  The only essential components are the script file and the views store directory.
+
+<p>
+<b>Can I have multiple script files (or other Qoan resources) in an app directory?</b><br />
+You can add as many supplemental or supporting resources to your Qoan app directory as you require; but Qoan identifies components explicitly, so there can be no "sharing" of, for example, script duties.  In general, you shouldn't need other callable scripts, a la the app's main script, for your app.  Qoan provides ways to use other components in your application; so you can load multiple configuration files, if you need, or use other code components (in the app's Qoan directory or elsewhere), or define views (or other resource) stores outside of the default one.
+
+<p>
+<b>Can I combine applications?</b><br />
+Nominally speaking, no, but practically speaking, yes.  As described in the previous paragraph, a Qoan application explicitly identifies one main script file; in this sense, combining apps is not possible.  However, using Action Managers, an application can have access to as many related or unrelated sets of defined "application" behavior as your application requires.
+
+<p>
+<b>Can I set up a Qoan app without all that redirection stuff?</b><br />
+Yes.  See the next page of this tutorial.
+
+
+<h3>Next tutorial: <a href="/qoandocs/tutorial?name=action_map">Application Action Maps</a>.</h3>
+
+<p>
+Links:<br />
+Debug report <br />
+Component configuration<br />
+Action managers<br />

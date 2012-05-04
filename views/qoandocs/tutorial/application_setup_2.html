@@ -1,0 +1,24 @@
+<h3>Step 2: What did I actually do here?</h3>
+
+<p>
+You have set up the bare minimum components for a Qoan application.  (Well, actually, a few more than the absolute bare minimum, as we shall see.)
+
+<p>
+<b>The app.pl file:</b><br />
+This is the script file for your application.  You have the option of putting all application code in this file, if that makes sense, or you can put your application code in separate files and leave this file as an extremely simple executing file, if that makes sense.  Either way, this file <i>is</i> your application.  It uses and is supported by Qoan, but this file is the real app.
+
+<p>
+<b>The app.config file:</b><br />
+This is the private configuration file for your application.  The default file has a few settings in it to allow you to request the debug report (link to debug report info on the next page), which is very helpful while you are designing your application.  You'll want to remove those lines when your application goes live.  Meanwhile, you have the option of putting all your config settings in this file, if that makes sense, or you can do all the configuration for your app in the application script itself, if that makes sense.  Your Qoan installation has a configuration file that is shared by all applications, in the <b>configs</b> folder under your Qoan installation directory.  The config file in your application directory, however, affects your application, and that's it.
+
+<p>
+<b>The .htaccess file:</b><br />
+This file is in case you want to have a Qoan application set up right inside your web server's publicly accessible area.  That style of set-up means your app code and support files will be in a public area, but it might be convenient to do this.  The application .htaccess file redirects <b>all</b> requests passing through its directory to the application script, and prevents the web server from serving <b>any</b> real resource (file or directory).
+
+<p>
+<b>The views directory:</b><br />
+This is where you store the view files for your application.  There is one in there by default, <b>index.html</b>.  Your Qoan installation folder also has a <b>views</b> directory for view files that are shared by all applications.
+
+<p>
+<b>The Qoan directory:</b><br />
+Here is where you will put any application-specific Qoan components.  This can include anything for Qoan; you can even give your application its own private Qoan controller component.

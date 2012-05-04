@@ -1,0 +1,353 @@
+<h2>Qoan Configuration Reference</h2>
+
+<!--  ENTRY FORMAT
+<div class="config_ref">
+<h3></h3>
+
+<p>
+
+<p><i>Default:</i> 
+
+</div>
+-->
+<p>Internal and not to be set by outside code:<br />
+request_stage<br />
+stderr_redirected_in_request_handler<br />
+action > :[action_stage] > :ok<br />
+action > :name<br />
+action > :check > :[check_name] > :ok
+render_view<br />
+response_sent<br />
+
+
+
+<p>Settable:<br />
+action_manager > :name, :type, :route, :view_on_fail<br />
+view_sources<br />
+local_views_only<br />
+view_on_fail<br />
+session:admin_http_debug<br />
+request:debug ("http")<br />
+delay_response<br />
+
+
+
+<p>Components: request, session, user.
+
+
+
+<div class="config_ref">
+<h3>action_manager_routes : key-value set</h3>
+
+<p>This is the list of regular expressions used by the Request Manager to determine which action manager the request is for, if the execute action stage begins and no action map is loaded.
+
+<p><i>Default:</i> empty.
+
+<p><i>Format:</i>
+
+<div class="code">
+[ action_manager_routes ]
+	action_manager_module : regular_expression
+	Cart : ^/?shopping_cart
+[/action_manager_routes ]
+</div>
+<br />
+
+</div>
+
+
+<div class="config_ref">
+<h3>action_stages : strings</h3>
+
+<p>These are the processing stages for the <b>action</b> stage in request processing.
+
+<ul>
+<li><i>identify</i> determines the action routine to use;
+<li><i>validate</i> executes zero or more environmental checks or setup routines;
+<li><i>execute</i> runs the action routine proper;
+<li><i>cleanup</i> runs after the action.
+</ul>
+
+<p><i>Default:</i> "identify", "check", "execute", "cleanup"
+
+</div>
+
+
+<div class="config_ref">
+<h3>allow_default_get_action : true/false</h3>
+
+<p>When true, permits the use of Qoan's default internal "get" action map, in the absence of discovery of an appropriate Action Manager or action map.
+
+<p><i>Default:</i> false
+
+</div>
+
+
+<div class="config_ref">
+<h3>allow_http_debug : true/false</h3>
+
+<p>When true, permits the return of the Qoan request processing report to the HTTP client.  The user cannot be anonymous.
+
+<p><i>Default:</i> false
+
+</div>
+
+
+<div class="config_ref">
+<h3>allow_http_debug_public : true/false</h3>
+
+<p>When true, permits the return of the Qoan processing report to be sent to an anonymous (public) user.  Note that <b>allow_http_debug</b> must also be true for this setting to work.
+
+<p><i>Default:</i> false
+
+</div>
+
+
+<div class="config_ref">
+<h3>application_alias : string</h3>
+
+<p>This string, which can be set explicitly and otherwise is the first section of the request header URI, can be used as a prefix or code to identify resources.
+
+<p><i>Default:</i> the first section of the request header URI.
+
+</div>
+
+
+<div class="config_ref">
+<h3>closure_accessors : strings</h3>
+
+<p><i>Default:</i> 
+
+#[  CLOSURE ACCESSORS is a whitelist of subroutines allowed to call the main closure.
+#
+# [ closure_accessors ]
+#	Qoan::RequestManager::action_map
+#	Qoan::RequestManager::component
+#	Qoan::RequestManager::env
+#	Qoan::RequestManager::errs
+#	Qoan::RequestManager::ok
+#	Qoan::RequestManager::response
+#
+#[ Component accessors are added to the list dynamically.
+#	Qoan::Interface::Request::accessor
+#	Qoan::Interface::Session::accessor
+#	Qoan::Interface::User::accessor
+#
+# [/closure_accessors ]
+</div>
+
+
+<div class="config_ref">
+<h3>component : compound hashes</h3>
+
+<p><i>Default:</i> 
+
+#[  COMPONENT settings for components which the Request Manager sets up in order to
+#[  establish context for executing the requested action.  The default components
+#[  are request, session, user, and view.  (Components necessary for execution of
+#[  the requested action are the responsiblity of the action routines.)
+#[
+#[  The INIT setting is for load routines to store constructor arguments.  These
+#[  could be put here (or in a separate "component:[name]:init" section) for 
+#[  components which will have static constructor arguments (e.g. the request).
+#[
+#[  The STORE setting is the directory for file-based storage.
+#[
+#[  Other settings could be added for use by load routines as needed.
+#
+# [ component:request ]
+#	module: CGI::Minimal
+#	interface: Qoan::Interface::DefaultRequest
+#	init: 
+# [/component:request ]
+#
+# [ component:session ]
+#	module: Qoan::Model::Minicache
+#	interface: Qoan::Interface::DefaultSession
+#	store: sessions/
+# [/component:session ]
+#
+# [ component:user ]
+#	module: Qoan::Model::Minicache
+#	interface: Qoan::Interface::DefaultUser
+#	store: users/
+# [/component:user ]
+</div>
+
+
+<div class="config_ref">
+<h3>component_load_order : strings</h3>
+
+<p><i>Default:</i> 
+
+#[  COMPONENT LOAD ORDER
+#
+# [ component_load_order ]
+#	request
+#	session
+#	user
+# [/component_load_order ]
+</div>
+
+
+<div class="config_ref">
+<h3>component_unload_order : strings</h3>
+
+<p><i>Default:</i> 
+
+#[  COMPONENT UNLOAD ORDER
+#[  By default this reverses the previous load order.
+#
+# [ component_unload_order ]
+#	user
+#	session
+#	request
+# [/component_unload_order ]
+</div>
+
+
+<div class="config_ref">
+<h3>default_route : regex</h3>
+
+<p>This route is used to determine the Action Manager if the list of <b>action_manager_routes</b> is not populated.
+
+<p>Note this can conflict with the Request Manager's default internal get action map.  WHEN TO USE??
+
+<p><i>Default:</i> none.
+
+<div class="code">
+	default_route: ^/?:action_manager/:action
+</div>
+<br />
+
+</div>
+
+
+<div class="config_ref">
+<h3>local_views_only : true/false</h3>
+
+<p>allows only the local view source, nothing from the Qoan install source
+
+<p><i>Default:</i> false.
+
+</div>
+
+
+<div class="config_ref">
+<h3>default_view : string</h3>
+
+<p>The Request Manager default view; the name of a view to be rendered for a request if the Action Map supplies none and the Action Manager has no default.  Consider this as an index view for a set of applications.  Not to be confused with the Request Manager's <b>view_on_fail</b> setting.
+
+<p><i>Default:</i> none.
+
+</div>
+
+
+<div class="config_ref">
+<h3>protected : strings</h3>
+
+<p><i>Default:</i> 
+
+#[  PROTECTED is a list of packages which are given security status "protected".
+#[  These default to the RequestManager package; and, dynamically determined, the
+#[  class of the controller object, which can be of another class, e.g. the Controller
+#[  class or an inheriting class.
+#
+# [ protected ]
+#	Qoan::RequestManager
+#	Qoan::Controller
+# [/protected ]
+</div>
+
+
+<div class="config_ref">
+<h3>sessionid_variable : string</h3>
+
+<p>This is the name of the value identifying the user session.  Thus, if <b>sessionid_variable</b> is "myapp_session_id", Qoan looks for the current session ID in the functional environment variable with that name.
+
+<p>By default, the Qoan session package expects to find this in an HTTP cookie header.  Alternately, this value name could be determined dynamically in the Qoan session's _before_load routine.
+
+<p><i>Default:</i> qoan_session
+
+</div>
+
+
+<div class="config_ref">
+<h3>sys_env_uri_header : string</h3>
+
+<p>This identifies the header to use in HTTP request path parsing.  It can change depending on what the HTTP server does prior to passing control to the Qoan application script; e.g., if the server redirects a request to a protected file, the header to use might be <b>redirect_url</b>.
+
+<p><i>Default:</i> request_uri
+
+</div>
+
+
+<div class="config_ref">
+<h3>userid_variable : string</h3>
+
+<p>This is the name of the value identifying the user account.  By default, the Qoan user package expects to find this in the session file.
+
+<p><i>Default:</i> qoan_user
+
+</div>
+
+#[  CONFIG VALUES NOT SET UP BY FILE
+#
+
+#[  The "main_*" values allow the controller to know what the calling package is,
+#[  and where the calling file is.  These are created on instantiation, and referenced
+#[  here only for the purposes of documentation.
+#
+#	main_caller
+#	main_file
+#	main_path
+
+#[  The following are values used in the functional env and so these names may not be
+#[  used in a config file.
+#
+#	ok
+#	errs (array)
+#	request_stage
+
+#[  MATCHING AM ROUTE is the regular expression that had the first match on the request URI.
+#
+#	matching_action_manager_route
+
+#[  ACTIVE ACTION MANAGER is the request's action manager, when dynamically determined.
+#
+#	active_action_manager
+
+
+
+#[  ASSORTED SETTINGS
+#
+
+
+#
+
+
+
+
+
+
+
+
+
+
+
+#[  Other settings ??
+#
+#  view_cache (empty == false)
+#  view_cache_namespace (Qafe_Controller_Views)
+#  view_cache_default_expiration (10 min)
+#  object_cache (empty == false)
+#  object_cache_namespace (Qafe_Controller_Objects)
+#  object_cache_default_expiration (10 min)
+
+#  use_internal_warning_handler (1)
+#  use_internal_die_handler (1)
+#  warning_handler (_handler_warn)
+#  die_handler (_handler_die)
+
+
+{{/header_wrap}}

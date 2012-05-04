@@ -1,0 +1,44 @@
+<h3>Step 1: Application quick set-up</h3>
+
+<p>
+(If you haven't yet, go through the <a href="/qoandocs/tutorial?name=qoan_setup">Basic Set-up Tutorial</a>.  It's short!  And this will still be here!)
+
+<p>
+0. Create a directory in your Qoan applications home directory.  Call it "helloworld" if you're not feeling inspired just now.
+
+<p>
+1. Copy the contents under the path <b>utility/setup_app</b> in your Qoan installation folder to your new application directory.  This includes 3 files (<b>.htaccess</b>, <b>app.config</b>, and <b>app.pl</b>) and 2 directories (<b>views</b> and <b>Qoan</b>).
+
+<p>
+2. Open the <b>app.pl</b> file.  In the line
+
+<div class="code">
+use lib qw| /path/to/qoan |;
+</div>
+
+<p>replace the "/path/to/qoan" segment with the absolute path to your Qoan installation's <b>parent</b> directory.  (This will be your Qoan applications home directory, unless you have split the two.)  If your Qoan installation is already in your Perl library search path, you can <b>delete</b> this line.
+
+<p>
+3. Open your <b>.qoan_applications</b> file (in the web server's public area) and add the following line:
+
+<div class="code">
+hello_sailor = helloworld/app
+</div>
+
+<p>
+4. Visit this URL in your browser: <b>http://[your domain]/hello_sailor</b>.
+<br />What do you see?
+
+<p>
+<b>I see a page that says "Hello, World."</b>
+
+<p>
+That's what you want!  For kicks, visit this URL: <b>http://[your domain]/hello_sailor?debug=http</b>.
+<br />What do you see?
+
+<p>
+<b>I see some kind of report saying a lot of stuff I don't understand.</b><br />
+That's the debug report.  You set up the new app correctly!  Hurray!
+
+<p>
+Of course, you have only set up the most basic functionality here.  To create a real application, you'll have to add code.  For now, though, let's see an explation of what you've done and some alternate base configurations.

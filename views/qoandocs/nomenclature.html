@@ -1,0 +1,55 @@
+<h2>Qoan Nomenclature</h2>
+
+<h3>:: Overview ::</h3>
+
+
+<h3>Overview Summary (TL;DR)</h3>
+
+<p>A Qoan Controller provides the generic operation for HTTP requests.  Applications are concerned with the request-specific context of those requests.  In the context of any request, the essential purpose of a Qoan Application is to provide the Action Map of an Action Manager, through which the Controller locates the necessary resources to perform request-specific operations.
+
+
+<h3>Action</h3>
+
+<p>An Action is the operation necessary for Qoan to fulfill any request it receives from a client.
+
+
+<h3>Qoan Controller</h3>
+
+<p>Qoan has a base Controller module which provides the basic HTTP request handling logic.  The base Controller provides for as much flexibility as possible in tailoring its generic operation as needed for hosted Applications.
+
+
+<h3>Application</h3>
+
+<p>In logical terms, a Qoan Application amounts to a set of specific, related actions, which Qoan handles according to HTTP client requests.
+
+<p>Component-wise, a Qoan Application consists of a directory, separate from the Qoan installation, containing: a script file, a views directory, a configuration file, and a local Qoan directory for supplemental Qoan code.
+
+<p>Only the script file is absolutely required, because the script is the heart of the application; but practically speaking, an Application without a views directory defeats the purpose, and any application will almost certainly need its own configuration file for its particular configuration settings (if only for troubleshooting).  An application of moderate complexity will likely benefit from, if not require, supplemental Qoan code in its own local directory.
+
+<p>A Qoan Application can rely on multiple Action Managers.
+
+
+<h3>Action Manager</h3>
+
+<p>An Action Manager is a module which contains the code supporting specific actions.  If an application does not make use of Qoan Action Manager modules, then the Qoan Controller expects an Application's main script to provide Action Manager support functions.  Thus there is always an "Action Manager" package.
+
+<p>The specific requirement for an Action Manager is to provide an Action Map, and to provide any action-specific support called for by the Action Map.
+
+<p>A Qoan Controller identifies and uses only one Action Manager for any HTTP request.
+
+<p>With regard to design, the actions within an Action Manager should be related.  For simple Qoan Applications, an Action Manager can certainly contain all the operations for that Application; and it probably is somewhat easier to manage such an application by putting all Action Manager code into the main application script (and therefore, use no Qoan Action Manager modules).  For more wide-ranging Applications, however, it will almost certainly pay off to organize application handling into separate Action Managers, each of which would be responsible for a different area of the application (and would reside in the Application's local Qoan directory).
+
+
+<h3>Action Map</h3>
+
+<p>An Action Map is the data structure that defines actions and the support necessary to identify them, execute them, and so on.  The Action Map is accessible via the Action Manager.  The only exception to this is the Qoan Controller's internal default get action.  An Action Manager provides a single Action Map.  Action Managers do not share their Action Maps.
+
+<p>There is no restriction to the number of actions an Action Map may define.
+
+
+<h3>Internal Get Action</h3>
+
+<p>The base Qoan Controller provides an Internal Get Action.  Also called Internal Default Get Action or Default Get Action, but to be clear, it is "default" by virtue of being internal to the Controller, and not contained in a separate Action Manager.  The Internal Get Action is off by default, and must be set on in the Controller environment.  As it provides no functionality other than getting a view, the Internal Get Action is useful only for extremely simple applications, e.g. Qoan's Documentation application.
+
+
+{{/header_wrap}}

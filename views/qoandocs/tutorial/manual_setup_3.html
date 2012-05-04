@@ -1,0 +1,25 @@
+<h3>Step 3: Application Code</h3>
+
+<p>Open your application file and let's start coding.
+
+<div class="code">
+emacs qoandocs/qoandocs.cgi
+</div>
+
+<p>(Not to start a religious war, but.. Yep, I'm an emacs guy. :) )
+
+<p><b>The Run Report</b>.  First let's get acquainted with Qoan's debug report.  In the application script, add the following code:
+
+<div class="code">
+use lib qw| /path/to/qoan |;  # Replace the path with wherever you installed Qoan.
+
+use Qoan::Controller;
+
+my $q = Qoan::Controller->new;
+
+$q->env( 'allow_http_debug' => 1 );
+$q->env( 'allow_http_debug_public' => 1 );
+$q->env( 'allow_default_get_action' => 1 );
+
+$q->process_request;
+</div>

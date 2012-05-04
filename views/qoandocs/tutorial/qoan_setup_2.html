@@ -1,0 +1,20 @@
+<h3>Step 2: What did I actually do here?</h3>
+
+<p>
+Qoan works through redirection.  You have set up the components of the Qoan redirection chain.
+
+<p>
+<b>The public web directory with the .htaccess file:</b><br />
+With the .htaccess file in it, Apache will now redirect any web request, with a URL passing through this directory, to the qoan_redirect.cgi script, as long as the URL does not point to a file or directory.  In other words, if the resource specified in the web URL does not exist, the .htaccess file assumes it is for a Qoan application.  Qoan does not use literal resource paths; all URLs are virtual.
+
+<p>
+<b>The .htaccess file:</b><br />
+As already stated, Qoan's .htaccess file redirects requests for non-existant website resources to qoan_redirect.cgi.  In addition, it tells Apache not to serve up the .qoan_applications file.
+
+<p>
+<b>The qoan_redirect.cgi script:</b><br />
+This script's job is to compare a request URL to a list of allowed Qoan applications and, if it finds a match, execute the script for the application.  This script will live beneath the Qoan apps directory.  (If qoan_redirect.cgi identifies no Qoan application, it returns nothing to the client, which means the server will return a 500 HTTP error.  If you want to avoid this, you can add custom code to the script.)
+
+<p>
+<b>The .qoan_applications file:</b><br />
+This file contains the list of allowed Qoan applications, and the path to the Qoan applications folder, which qoan_redirect.cgi must know in order to find your Qoan applications.

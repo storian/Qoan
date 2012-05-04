@@ -1,0 +1,3 @@
+use Qoan::Controller;
+
+Qoan::Controller->process_request;

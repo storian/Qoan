@@ -1,0 +1,8 @@
+use Qoan::Controller;
+
+my $q = Qoan::Controller->new;
+
+$q->env( 'http_debug_allow' => 1 );
+$q->env( 'http_debug_allow_public' => 1 );
+
+$q->process_request;

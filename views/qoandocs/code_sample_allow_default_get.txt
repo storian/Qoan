@@ -1,0 +1,7 @@
+use Qoan::Controller;
+
+my $q = Qoan::Controller->new;
+
+$q->env( 'allow_default_get_action' => 1 );
+
+$q->process_request;

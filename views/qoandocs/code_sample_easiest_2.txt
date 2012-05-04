@@ -1,0 +1,5 @@
+use Qoan::Controller;
+
+my $q = Qoan::Controller->new;
+
+$q->process_request;

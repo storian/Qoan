@@ -1,0 +1,37 @@
+<h3>Step 2: Pointing Requests At Your Code File</h3>
+
+<p><b>Server Redirection</b>.  The following step assumes your HTTP server is Apache.  Again inside the new application directory, create an <b>.htaccess</b> file:
+
+<div class="code">
+touch qoandocs/.htaccess
+</div>
+
+<p>and add the following text to it:
+
+<div class="code">
+RewriteEngine on
+RewriteBase /
+RewriteRule  ^qoandocs(.*) qoandocs.cgi
+</div>
+
+<p>This file is a server directive file for the Apache HTTP server, and the directive tells Apache to redirect any requests that start with "qoandocs" to your qoandocs.cgi file.  This is important because without the directive, all requests to your application will have to take this form:
+
+<div class="code">
+http://your.domain/qoandocs/<font color="red">qoandocs.cgi</font>
+</div>
+
+<p>That is, they will have to <i>literally</i> point to the exact location of your application file.  This means that flexible (and virtual) resource addressing like the following will be difficult to do:
+
+<div class="code">
+http://your.domain/qoandocs/<font color="red">some_resource_reference/some_action</font>
+</div>
+
+<p>What's more, without the directive, someone could request other files that you don't want them to.  For example, they could guess that you have a "views" directory, and send a request to:
+
+<div class="code">
+http://your.domain/qoandocs/<font color="red">views/some_view</font>
+</div>
+
+<p>..which is probably not what you want your application users to do.
+
+<p>With the directive, however, you do not even need to store your application in the public directory "qoandocs".  You can move it to a protected area on your system, outside the public folders served up by your HTTP server.

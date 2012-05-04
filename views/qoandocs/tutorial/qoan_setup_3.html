@@ -1,0 +1,48 @@
+<h3>Step 3: Alternate set-ups</h3>
+
+<p>
+<b>Can I install Qoan under my webserver's public document root?</b><br />
+You can, that will not break anything.  However, now your web server has access to Qoan's files and the code and supporting files for any application you create.  That is not necessary.
+
+<p>
+<b>Can I install Qoan and my Qoan applications in separate directories?</b><br />
+You can.  The only problem with this is that it will break Qoan's "internal" apps, which includes its Documentation.  
+<ul>
+<li>Fix this in .qoan_applications by uncommenting the <b>core_home</b> line and replacing its setting of "/abs/path/to/qoan/parent" with the absolute path to the Qoan installation's <b>parent</b> directory.  (If you don't care about Qoan's internal apps, you can ignore this.)
+</ul>
+
+<p>
+<b>Should I set up the path to Qoan in my system's Perl library search path?</b><br />
+That's a great idea.  If you do it will save you a little work later.  (Not much really, but a little.)  Or you could install Qoan to a location already in your Perl path.  You might not want to install Qoan in your main Perl library area, however, as there is some default <i>application</i> functionality that Qoan provides, and you might want to add to it or change it.
+
+<p>
+<b>Do I have to put Qoan's .htaccess file in my web server's document root?</b><br />
+Heck no!  You can put it in <i>any</i> directory under the web server's public tree -- anywhere the .htaccess file will work.  The only problem here is that the .htaccess and .qoan_applications files both assume that the redirection is happening in the web server's document root.
+<ul>
+<li>Fix this in .htaccess by replacing the <b>RewriteBase</b> line's setting of "/" with the system path from the web server's document root to the directory containing the .htaccess file.
+<li>In .qoan_applications, uncomment the <b>redirector_home</b> line and replace its setting "/path/docroot/to/redirect/folder" with the same path.
+</ul>
+
+<p>
+<b>Do I have to keep qoan_redirect.cgi in the same directory as the .htaccess file?</b><br />
+Sure don't!  Move the qoan_redirect.cgi to whatever directory you want, as long as the web server can see it.  The only problem here is .htaccess assumes that qoan_redirect.cgi is in the same directory.
+<ul>
+<li>Fix this by prepending the <b>RewriteRule</b> line's "qoan_redirect.cgi" segment with the full path from the web server document root to the directory containing the script.
+</ul>
+
+<p>
+<b>Do I have to keep the .qoan_applications file with the redirect script?</b><br />
+No, you can change that too if you want to, but note that the purpose of the separate .qoan_applications file is to avoid editing qoan_redirect.cgi.  You must edit the following line of the qoan_redirect.cgi file to include the absolute path to the .qoan_applications file.
+
+<div class="code">
+open( APPS, "<", ".qoan_applications" );
+</div>
+
+<p>
+Those are the options for overall Qoan setup.  Now we move on to setting up a Qoan application within your Qoan installation.
+
+<p>
+If you want to read about what is in the Qoan installation, go here: <a href="">Qoan installation components</a>.
+
+
+<h3>Next tutorial: <a href="/qoandocs/tutorial?name=application_setup">Qoan Application Set-up</a>.</h3>
