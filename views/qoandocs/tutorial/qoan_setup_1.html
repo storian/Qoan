@@ -1,24 +1,36 @@
-<h3>Step 1: Quick Set-up</h3>
+<h3>Step 1: Quick Set-up and Test</h3>
 
 <p>
-0. Download the Qoan code from Github: <a href="https://github.com/storian/Qoan/downloads">[download page]</a>
+<b>0. Get Code.</b><br />
+Download the Qoan code from Github: <a href="https://github.com/storian/Qoan/downloads">[download page]</a>
 
 <p>
-1. Create a directory outside of your web server's public directory.  Call it "qoan_apps" if you can't think of anything brilliant just now.  This is where Qoan will live and where all your Qoan applications will live.  Unpack the download inside that directory.  When you are done there should be a directory inside "qoan_apps" called "Qoan".  This is your {{quickdef}}Qoan installation directory{{/quickdef qoan_installation}}.
+<b>1. Create a Qoan applications directory.</b><br />
+Create a directory outside of your web server's public directory, called <b>qoan_apps</b>.  This is your {{quickdef}}Qoan applications directory{{/quickdef qoan_applications_dir}}.  Unpack the download inside that directory.  When you are done there should be a directory inside <b>qoan_apps</b> called <b>Qoan</b>.  This is your {{quickdef}}Qoan installation directory{{/quickdef qoan_installation}}.
 
 <p>
-2. Copy the contents from the path <b>qoan_apps/Qoan/utility/setup_redirect</b> -- 3 files total: <b>.htaccess</b>, <b>.qoan_applications</b>, and <b>qoan_redirect.cgi</b> -- to your web server's document root.
+<b>2. Create a redirection directory.</b><br />
+Create a {{quickdef}} redirection directory{{/quickdef redirection_dir}} in your web server's document root, called <b>qoan</b>.  This is just for testing, so you can delete or change it later.
 
 <p>
-3. Open <b>.qoan_applications</b> and replace "/absolute/path/to/qoan_apps" in the "app_home" line, with the absolute filesystem path to your Qoan apps directory.  (In fact, this is not necessary for the next step, but you might as well do it now.)
+<b>3. Copy redirection files to the new web directory.</b><br />
+These are:
+<ul>
+<li>Qoan/utility/setup/verify/<b>.htaccess</b>
+<li>Qoan/utility/setup/verify/<b>qoan_redirect.cfg</b>
+<li>Qoan/utility/setup/<b>qoan_redirect.cgi</b>
+</ul>
 
 <p>
-4. Visit the URL: <b>http://[your domain]/qoandocs</b>.
-<br />What do you see?
+<b>4. Make an edit to the redirector configuration file.</b><br />
+Open <b>qoan_redirect.cfg</b> and replace "/absolute/path/to/qoan_apps" in the "qoan_home" line, with the absolute filesystem path to your {{quickdef}}Qoan applications directory{{/quickdef qoan_applications_dir}}.
 
 <p>
-<b>I see the index page for the Qoan documentation.</b><br />
-You've set Qoan up correctly!  Hurray!
+<b>5. Test Qoan.</b><br />
+Now visit the URL: <b>http://[your domain]/qoan</b>.  If you see <b>the index page for the Qoan documentation</b>, then Qoan is working!  Hurray!  (If it did not work, hie thee to <a href="tutorial?name=qoan_setup&amp;page=4">page 4</a> of this tutorial.)
 
 <p>
-If you don't like how we've set up Qoan here, you have some options.  Before we get into those, the next step tells you what you just did.
+If you want to read about what is in the Qoan installation, go here: <a href="inside_qoan">Qoan installation components</a>.
+
+<p>
+The next step in this tutorial gives detail about what you've just done.  After that there will be different setup configuration options.

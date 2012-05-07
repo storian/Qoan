@@ -16,7 +16,6 @@ BEGIN
 	$view_path = $qoan_path . '/Qoan/views/';
 }
 
-use lib $qoan_path;
 use Qoan::Controller (
 	'app_config' => "$cfg_path$app_code.config",
 	'component:view:store' => "$view_path$app_code/" );

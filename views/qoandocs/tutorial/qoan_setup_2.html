@@ -1,20 +1,27 @@
 <h3>Step 2: What did I actually do here?</h3>
 
 <p>
-Qoan works through redirection.  You have set up the components of the Qoan redirection chain.
+Qoan works through redirection.  In the previous test, you set up the components of a {{quickdef}}Qoan redirection chain{{/quickdef redirection_chain}}.
 
 <p>
-<b>The public web directory with the .htaccess file:</b><br />
-With the .htaccess file in it, Apache will now redirect any web request, with a URL passing through this directory, to the qoan_redirect.cgi script, as long as the URL does not point to a file or directory.  In other words, if the resource specified in the web URL does not exist, the .htaccess file assumes it is for a Qoan application.  Qoan does not use literal resource paths; all URLs are virtual.
+<b>The Qoan core installation.</b>
+This is the Qoan directory that you created when you unpacked the Qoan download.  It contains all Qoan's code libraries, and other non-code resources such as views and configuration files.  These resources include "internal" applications, which are applications packaged with the Qoan code.  Qoan's documentation is such an {{quickdef}}internal application{{/quickdef internal_app}}.
 
 <p>
-<b>The .htaccess file:</b><br />
-As already stated, Qoan's .htaccess file redirects requests for non-existant website resources to qoan_redirect.cgi.  In addition, it tells Apache not to serve up the .qoan_applications file.
+<b>The Qoan applications directory.</b>
+This is the home for all your Qoan applications (each of which should live in its own private directory).  The default recommendation of putting Qoan inside your Qoan apps directory is for convenience only.
 
 <p>
-<b>The qoan_redirect.cgi script:</b><br />
-This script's job is to compare a request URL to a list of allowed Qoan applications and, if it finds a match, execute the script for the application.  This script will live beneath the Qoan apps directory.  (If qoan_redirect.cgi identifies no Qoan application, it returns nothing to the client, which means the server will return a 500 HTTP error.  If you want to avoid this, you can add custom code to the script.)
+<b>The redirection directory.</b>
+This is the public interface to a Qoan application.  Obviously <i>something</i> has to be publicly accessible for the public to use your application, but in the previous quick set-up example, you have kept it to a minimum, and run no risk of exposing files you don't need to.
 
 <p>
-<b>The .qoan_applications file:</b><br />
-This file contains the list of allowed Qoan applications, and the path to the Qoan applications folder, which qoan_redirect.cgi must know in order to find your Qoan applications.
+<b>The redirection components:</b>
+<ul>
+<li><b>The .htaccess file.</b>  This file tells the Apache webserver to redirect HTTP requests <i>for any non-existant resource</i> to your Qoan application.  It also prevents Apache from serving up your qoan_redirect.cfg file.
+<li><b>The qoan_redirect.CGI file.</b>  This is the redirection script proper.  It reads the qoan_redirect.cfg file, uses its information to interpret the web request, and then calls the Qoan application script for the request.  You shouldn't ever have to edit this file.
+<li><b>The qoan_redirect.CFG file.</b>  This file is for the information qoan_redirect.cgi requires to know how to redirect web requests.  In the previous test, the only information you had to add was where to look for your Qoan installation.  You may have also noted that it has a line <b>qoan = INTERNAL/qoandocs</b>.  The <b>qoan</b> in that line is the {{quickdef}}public alias{{/quickdef app_public_alias}} for the Qoan documentation application.  The <b>INTERNAL</b> tells qoan_redirect.cgi that this application is an internal application.  The <b>/qoandocs</b> is the {{quickdef}}private alias{{/quickdef app_private_alias}} for the Qoan documentation application.
+</ul>
+
+<p>
+Almost everything about how you set up your test of Qoan was optional.  Following are alternate set-up options.

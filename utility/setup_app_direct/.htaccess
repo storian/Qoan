@@ -1,8 +1,0 @@
-RewriteEngine on
-RewriteBase /[PATH/TO/THIS/DIR]
-
-# Note this redirects *all* requests through this directory
-# to the application script.
-
-# Rename your application script file.
-RewriteRule ^.*$ app.pl

@@ -1,42 +1,34 @@
 <h2>Installation and App Set-up Overview</h2>
 
-<h3>Installation</h3>
+<h3>How Qoan Works</h3>
 
 <p>
-<b>Where to install Qoan?</b><br />
-Installing Qoan isn't any more difficult than putting the unpacked Qoan code where you want it.  <i>Where</i> is the question, however.
+Qoan works by redirection.  Web requests are not directly made to a core Qoan file, or a Qoan application script, that you might store somewhere in your web server's public directory.  Qoan provides a redirection apparatus, consisting of a few files (3 at this time), which guides an HTTP request to your Qoan application.  Everything in this overview follows from that.
+
+<h3>Where to install Qoan itself?</h3>
 
 <p>
-The important concerns here are not with Qoan's functionality but rather with security and convenience.
+<b>1. Qoan doesn't expect to be public.</b><br />
+Qoan is designed to work only with "virtual" request URLs; so there is no need for Qoan to be under your web server's public document root, where Jane Q. Public might accidentally read it.
 
 <p>
-<b>Don't make it public.</b><br />
-There's no reason to put Qoan under your web server's public document root.  Qoan is designed to work only with "virtual" request URLs; even if you keep your Qoan apps under your web server's document root, they are not called directly.  There is no need for Qoan or your Qoan app code to be somewhere where Jane Q. Public might accidentally read it.
+<b>2. Qoan apps do not expect Qoan to be in your system's Perl library path.</b><br />
+Qoan's redirection apparatus includes the path to Qoan in its calls to your application scripts; so there is no need to make sure Qoan lives somewhere on your system's Perl library path.
 
 <p>
-<b>Somewhere on Perl's library search path might make life a tad more convenient.</b><br />
-By default, Qoan apps do <i>not</i> expect Qoan to be in your system Perl library path.  These are your options:
+Note that neither of these is a requirement.  The default recommendation is to install Qoan into an appropriate directory near your web server's document root.  See the <a href="tutorial?name=qoan_setup">Qoan installation tutorial</a> for installation directions and options.
 
-<ul>
-<li><b>Do things the default way.</b>  Qoan's template application script includes a line that tells it where to find Qoan.  You can change that line in the template script (recommended), or you can leave the template alone and change the line when you set up a new Qoan app.  It's a little inconvenient but not bad.  You might even find it useful as you can easily point different apps to different Qoan installations.
-<li><b>Edit the system Perl path to include Qoan's location.</b>  A problem here might be that you lack permission to make this system change.
-<li><b>Put Qoan with your other Perl modules.</b>  A problem here is that Qoan also has non-code shared resources, such as view and config files, which you might want to add to or change; it might not be appropriate to keep such resources with static code libraries.  Another problem might be that you don't have permission to update your server's Perl store.
-<li><b>Put Qoan's code with the Perl modules, and its other resources in another location.</b>  The problem here is that the Qoan controller will not know where to find Qoan's shared resources; so you will have to change the default configuration of your apps to tell it where to find them.  This is not that hard.
-</ul>
+<h3>Where to install my Qoan apps?</h3>
 
 <p>
-My recommendation is to create a new directory for Qoan in a protected area not in but near your web server's public document root; and that you keep your Qoan apps in the same directory, but you have options there too.
-
-
-<h3>App Set-up</h3>
+<b>1. Qoan apps don't need to be public.</b><br />
+Qoan's redirection files are the only ones which must be where your web server can read them.  This means that your Qoan application resources proper can reside outside of your web server's public area, just like Qoan itself.
 
 <p>
-<b>Where to install your Qoan apps?</b><br />
-A Qoan application is basically a directory.  Within the directory will be an application script and resources private to the application.
-The concerns here will be with security and convenience, but also functionality.
+<b>2. Qoan does not care where your Qoan apps are.</b><br />
+A Qoan app consists, at bottom, of a script file.  This script uses the Qoan library to do its work.  Qoan makes no assumption about where your script lives, or anything else "external" in that way.  Qoan does assume that your app script and certain basic private resources all live in one directory.
 
 <p>
-<b>Again, don't make it public.  Unless you really want to.</b><br />
-
+Again, these are not requirements.  The default recommendation here is to use the same directory in which you installed Qoan for your Qoan application directories.  See the <a href="tutorial?name=application_setup">Qoan application installation tutorial</a> for application set-up directions and options.
 
 {{/header_wrap}}

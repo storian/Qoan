@@ -24,6 +24,10 @@ Nominally speaking, no, but practically speaking, yes.  As described in the prev
 <b>Can I set up a Qoan app without all that redirection stuff?</b><br />
 Yes.  See the next page of this tutorial.
 
+<p>
+<b>I don't want to use one Qoan applications directory.</b><br />
+You can do this with a little creativity in your qoan_redirect.cfg file.  Qoan_redirect.cgi expects an applications directory setting, either in <b>apps_home</b> or in <b>qoan_home</b>.  And you will most likely have <i>some</i> general area you want to keep your apps in, even if it's not a single directory.  Therefore, set the <b>apps_home</b> value to the most general path shared by all your Qoan app locations, and then add the remaining path in the application entry lines.  Note that qoan_redirect.cgi will die if it detects ".." in an application path.
+
 
 <h3>Next tutorial: <a href="/qoandocs/tutorial?name=action_map">Application Action Maps</a>.</h3>
 

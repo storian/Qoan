@@ -7,7 +7,7 @@ return '{{tutorial_index/}}' unless $name;
 
 
 my( $s );
-my( %longtitle, %shorttitle, $pages, $next, $link_next, $link_full, $tutorial_body );
+my( %longtitle, %shorttitle, $pages, $next, $link_list, $link_next, $link_full, $tutorial_body );
 
 
 %longtitle = (
@@ -34,14 +34,18 @@ else
 	return '{{tutorial_index/}}' unless $pages > 0;
 	
 	$next = $page + 1;
+	$link_list = join( ' .. ', map { qq|<a href="tutorial?name=${name}&amp;page=$_">Page $_</a>| } 1 .. $pages );
 	$link_next = qq|<p>Go to <a href="tutorial?name=${name}&amp;page=$next">$shorttitle{ $name }, Step $next</a>.| if $page < $pages;
 	
 	$tutorial_body = "{{tutorial:${name}_$page/}}";
 }
 
-$s = qq|<h2>Tutorial: $longtitle{ $name }</h2>
+$s = qq|<div class="tutorial_pages">
+<p>$link_list
+<p>$link_full
+</div>
 
-$link_full
+<h2>Tutorial: $longtitle{ $name }</h2>
 
 $tutorial_body
 
