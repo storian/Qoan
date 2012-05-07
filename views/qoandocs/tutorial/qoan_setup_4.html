@@ -1,0 +1,34 @@
+<h3>Step 4: The set-up verification test didn't work!</h3>
+
+<p>
+Okay, dude.  Here are some things to check.
+
+<p>
+<b>System software.</b><br />
+Currently Qoan expects your web server to be Apache 2.  Other HTTP servers have not been tested.  The version of Perl installed on your system should be at least 5.8.9.  These should be the only software requirements.
+
+<p>
+<b>Path to the perl interpreter.</b><br />
+The path to perl used in all Qoan scripts is: <b>/usr/bin/perl</b>.  Make sure this is correct for your system.  My apologies if it is not.
+
+<p>
+<b>Name and location of the redirection folder.</b><br />
+The verification test redirection components expect the redirection folder you put them in to be called <b>qoan</b>, and they expect it to be in the public document root of your web server.  Naming it something other than <b>qoan</b> or nesting it inside other directories in your server's document root structure means the verification will not succeed.  If you can't put the <b>qoan</b> folder in the document root:
+<ul>
+<li>Instead of verify test instruction step 1, select or create another directory farther down in the public directory area;
+<li>Follow the verify test instructions through step 4;
+<li>Edit the <b>RewriteBase</b> line in the .htaccess file to have the full path from your web server's document root to the qoan directory you have created, including the qoan directory;
+<li>Add a line to the qoan_redirect.cfg file for the value <b>redirect_home</b> and set it to the path from your web server's document root to the qoan directory, <b>not</b> including the qoan directory.
+</ul>
+
+<p>
+<b>Location of the Qoan installation.</b><br />
+The qoan_redirect.cfg file must contain the correct <i>absolute</i> path to your Qoan installation.  If you have a typo in the path you entered, the verification will not succeed.
+
+<p>
+<b>Names of the redirection files.</b><br />
+The names of the redirection files must be <b>.htaccess</b>, <b>qoan_redirect.cgi</b>, and <b>qoan_redirect.cfg</b>.  You must have all three files in the redirection directory or the verification will not succeed.
+
+<p>
+<b>Permissions on the redirection files.</b><br />
+All three files must be readable by whatever user Apache is on your server.  The qoan_redirect.cgi script file also must be executable by the Apache user.

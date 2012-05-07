@@ -1,0 +1,12 @@
+RewriteEngine on
+RewriteBase /qoan
+
+RewriteCond  %{DOCUMENT_ROOT}/%{REQUEST_URI}  !-f
+#RewriteCond  %{DOCUMENT_ROOT}/%{REQUEST_URI}  !-d
+RewriteCond  %{DOCUMENT_ROOT}/%{REQUEST_URI}  !-l
+RewriteRule  ^.*  qoan_redirect.cgi [L]
+
+<Files qoan_redirect.cfg>
+order allow,deny
+deny from all
+</Files>
