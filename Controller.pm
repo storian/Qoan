@@ -143,10 +143,17 @@ BEGIN
 		'sessionid_variable'   => 'qoan_session',
 		'userid_variable'      => 'qoan_user',
 		'qoan_started'         => time(),
-		'closure_accessors'    => [ map { __PACKAGE__ . "::$_" } qw| action_map  component  env  ok  publish  response | ],
+		'closure_accessors'    => [ map { __PACKAGE__ . "::$_" } qw| action_map  clipboard  component  env  ok  publish  response | ],
 		'publish'              => { 
-			'action_manager' => { 'env' => 'env' },
-			'view'           => { 'env' => 'env' },
+			'action_manager' => {
+				'clipboard' => 'clipboard',
+				'env' => 'env',
+				'response' => 'response',
+			},
+			'view'           => {
+				'clipboard' => 'clipboard',
+				'env' => 'env'
+			},
 		},
 		'component'            => {
 			'request' => {
@@ -378,6 +385,8 @@ sub _action_identify ($)
 					$identified = $action;
 					$route = $_;
 				}
+				
+				last if $identified;
 			}
 			
 			last if $identified;
@@ -589,6 +598,29 @@ sub app_package
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
+sub clipboard
+{
+	my( $q );
+	
+	$q = shift();
+# Clipboard not allowed for class method call style (no use of base object).
+	return if $q eq __PACKAGE__;
+	return unless @_;
+	
+	$q->report( qq|Writing data to clipboard under name "$_[ 0 ]".| ) if @_ > 1;
+	$q->report( qq|Reading data from clipboard under name "$_[ 0 ]".| ) if @_ == 1;
+	
+# External a)
+	return $q->( @_ );
+}
+
+
 # method COMPONENT (public, object)
 # purpose:
 #	Custom ENV accessor, for component settings only.
@@ -605,15 +637,19 @@ sub app_package
 # called by non-object-accessor: returns env component settings - requires IDing the object e.g. "request" parameter
 # NO - not useful because it requires id'ing the object. called by non-object_accessor with 'DATA' parameter: returns object values from env
 
+# NOTE on sub component:
+#  designed only to set one settings/data value at a time.
+#  only writes to *specific* sections of env; changes received key.
+
 # Purpose:  x
 # Context:  x
 # Receives: x
 # Returns:  x
 # External: x
 #
-sub component ($;@)
+sub component
 {
-	my( $q, @params );
+	my( $q, @params, $i );
 	my( $writing, $reading, $caller );
 	my( %component_list, $name, $settings );
 	my( $load_obj, $unload_obj, $get_obj, $data_call, $settings_call );
@@ -673,33 +709,56 @@ sub component ($;@)
 				: $q->( $name => $params[ 0 ] );
 		}
 		
-		$data_call = 1 if $params[ 0 ] =~ m|^data\b|i;
-		$settings_call = 1 if $params[ 0 ] =~ m|^settings\b|i;
-		
-		if ( $reading )
+# Step through key parameters and evaluate whether they are for
+# Data or Settings.
+		for ( $i = 0; $i < @params; $i += 2 )
 		{
-			$data_call = ( $params[ 0 ] =~ s|^data|$name|i );
-			$settings_call = ( $params[ 0 ] =~ s|^settings|component:$name|i );
-			
-			if ( $data_call || $settings_call )
-			{
-				return $q->env( $params[ 0 ] );
-			}
-			else
-			{
-				return $q->env( "component:$name:$params[ 0 ]" ) ||
-					$q->env( "$name:$params[ 0 ]" );
-			}
+			$data_call = 1 if $params[ $i ] =~ m|^data\b|i;
+			$settings_call = 1 if $params[ $i ] =~ m|^settings\b|i;
 		}
-		elsif ( $writing )
+		
+# It can't be both!
+		if ( $data_call && $settings_call )
 		{
-			my( $i );
+			warn 'Component accessor received mixed data and settings call: ' .
+				join( ', ', @params );
+			return 0;
+		}
+		
+# If caller has not specified Data or Settings, apply instantiation rule.
+		unless ( $data_call || $settings_call )
+		{
+			$data_call = 1 if defined( $q->( $name ) );
+			$settings_call = 1 if ! defined( $q->( $name ) );
 			
 			for ( $i = 0; $i < @params; $i += 2 )
 			{
-				$data_call = ( $params[ $i ] =~ s|^data|$name|i );
-				$settings_call = ( $params[ $i ] =~ s|^settings|component:$name|i );
-				$params[ $i ] = "$name:$params[ $i ]" unless $data_call || $settings_call;
+				$params[ $i ] = "data:$params[ $i ]" if $data_call;
+				$params[ $i ] = "settings:$params[ $i ]" if $settings_call;
+			}
+		}
+		
+		if ( $reading )
+		{
+			#$data_call = ( $params[ 0 ] =~ s|^data|$name|i );
+			#$settings_call = ( $params[ 0 ] =~ s|^settings|component:$name|i );
+			
+			#if ( $data_call || $settings_call )
+			#{
+				$params[ 0 ] =~ s|^data|$name|i if $data_call;
+				$params[ 0 ] =~ s|^settings|component:$name|i if $settings_call;
+				
+				return $q->env( $params[ 0 ] );
+			#}
+		}
+		elsif ( $writing )
+		{
+			for ( $i = 0; $i < @params; $i += 2 )
+			{
+				#$data_call = ( $params[ $i ] =~ s|^data|$name|i );
+				#$settings_call = ( $params[ $i ] =~ s|^settings|component:$name|i );
+				$params[ $i ] =~ s|^data|$name|i if $data_call;
+				$params[ $i ] =~ s|^settings|component:$name|i if $settings_call;
 			}
 			
 			return $q->env( @params );
@@ -757,10 +816,23 @@ sub env
 	$reading = shift() if @_ == 1;
 	%writing = @_;
 	
-# Values in env can be changed before processing starts, or by the processing routine.
+# Only a single key parameter submitted, return the value.
+# External c)
+	return $q->( $reading ) if $reading;
+	
+# Values in env can be changed:
+#  - before request processing starts
+#  - by the processing routine, at any time
+#  - for component data areas in env if the caller is sub component and the
+#    component in question is flagged as rewritable.
 # NOTE  can't call request_stage() here, because that relies on env().
 	$editable = 1 if ! defined $q->( 'request_stage' );
 	$editable = 1 if $caller eq 'Qoan::Controller::process_request';
+#	if ( $caller eq 'Qoan::Controller::component' )
+#	{
+#		my( $component ) = ( ( keys %writing )[ 0 ] =~ m|^(\w+):| )[ 0 ];
+#		$editable = 1 if $q->( "component:$component:rewritable" ) eq '1';
+#	}
 	
 # Caller can pass a list of config file names and hash refs containing env key-value
 # pairs in an array ref.  It must be the first parameter.
@@ -771,17 +843,13 @@ sub env
 		
 		for ( @{ $cfg_load } )
 		{
-# External c)
+# External d)
 			$q->( __PACKAGE__->retrieve_config( $_ ) ) if ! ref $_;
 			$q->( %{ $_ } ) if ref( $_ ) eq 'HASH';
 		}
 		
 		return 1;  # ??? return value after config load??
 	}
-	
-# Only a single key parameter submitted, return the value.
-# External d)
-	return $q->( $reading ) if $reading;
 	
 # Remove keys with defined values if env is not editable.
 	if ( ! $editable )
@@ -1456,7 +1524,7 @@ sub _method
 #
 sub new_request
 {
-	my( $class, %load_cfg, %env, %ro, %component, %action_map, %response, %publish, $q, $k, $v );
+	my( $class, %load_cfg, %env, %ro, %component, %action_map, %response, %publish, %clip, $q, $k, $v );
 	my( %set_env );
 	
 	$class = shift();
@@ -1502,6 +1570,7 @@ sub new_request
 		$store =
 			$caller eq 'Qoan::Controller::env' ? \%env :
 			$caller eq 'Qoan::Controller::ok' ? \%env :
+			$caller eq 'Qoan::Controller::clipboard' ? \%clip :
 			$caller eq 'Qoan::Controller::component' ? \%component :
 			$caller eq 'Qoan::Controller::publish' ? \%publish :
 			$caller eq 'Qoan::Controller::response' ? \%response :
@@ -1536,7 +1605,7 @@ sub new_request
 			}
 			
 # Update if value submitted along with key.
-			if ( $v )
+			if ( defined $v )
 			{
 				if ( $index eq 'ok' && $caller eq 'Qoan::Controller::ok' )
 				{
@@ -1554,12 +1623,6 @@ sub new_request
 				}
 				else
 				{
-					#if ( $v =~ m|\e| )
-					#{
-					#	$v =~ s|^\[ARRAY\]||;
-					#	$v = [ split( "\e", $v ) ];
-					#}
-					
 					$loc->{ $index } = $v;
 				}
 			}
@@ -1728,7 +1791,7 @@ sub process_request
 # URI SHIT.  Kind of Argh.  Clean this up somehow.
 # Get request header.
 # Prepend with slash and remove query string if any.
-	my( $uri_virt, $uri_lead, $docroot );
+	my( $uri_virt, $uri_lead, $docroot, $alias, $virt_alias );
 	$uri_virt = $q->env( 'sys_env:' . $q->env( 'uri_source_header' ) );
 	$uri_virt = "/$uri_virt" unless $uri_virt =~ m|^/|;
 	$uri_virt =~ s|\?.*$|| if $q->env( 'uri_source_header' ) eq 'request_uri';
@@ -1741,13 +1804,16 @@ sub process_request
 		$uri_lead .= "/$_";
 	}
 	$uri_virt =~ s|^$uri_lead||;
-# "uri:virtual_alias" means that the app alias is in the URI's virtual part.
+# "uri:alias:virtual" means that the app alias is in the URI's virtual part ONLY.
 # The default is to use a directory as the resource "mask" for the app, and
-# the dir name serves as the public app alias.  (Not the private one though.)
-	$uri_virt = "/$ARGV[ 0 ]" . $uri_virt unless $q->env( 'uri:alias:virtual' );
+# the dir name serves as the public app alias, hence not virtual.
+	$alias = $ARGV[ 0 ];
+	$virt_alias = ( $uri_lead =~ m|$alias$| ? 0 : 1 );
+	$q->env( 'uri:alias:virtual' => "$virt_alias" );
+	$uri_virt = "/$alias" . $uri_virt unless $q->env( 'uri:alias:virtual' );
 	$q->env( 'uri:virtual' => $uri_virt );
 	$q->env( 'uri:lead' => $uri_lead );
-	$q->env( 'uri:alias:argv' => $ARGV[ 0 ] );
+	$q->env( 'uri:alias:argv' => $alias );
 	
 	
 # REQUEST PROCESSING, start report.
@@ -1898,7 +1964,7 @@ sub process_request
 # Application alias.
 	$q->env( 'application_alias' => ( $q->env( 'uri:virtual' ) =~ m|^/?(\w+)| )[ 0 ] ) unless $q->env( 'application_alias' );
 	
-	$q->report( "application alias:       @{[ $q->env( 'application_alias' ) ]}" );
+	$q->report( "public app alias:        @{[ $q->env( 'application_alias' ) ]}" );
 	$q->report( "action manager loaded?   @{[ $am_loaded ? 'yes' : 'NO' ]}" );
 	$q->report( "action manager:          @{[ $am_loaded ? $am_package : 'none' ]}" );
 	$q->report( "action manager alias:    @{[ $q->env( 'action_manager:alias' ) ]}" );
@@ -2069,7 +2135,7 @@ sub process_request
 	
 # Action Map/Manager default.
 # Note the source says "action manager" but this is because an AM can only have
-# on action map.
+# one action map.
 	unless ( $render_view )
 	{
 		$render_view = $q->action_map( 'default_view' );
@@ -2133,35 +2199,42 @@ sub process_request
 # View rendering.
 	$q->report( ":: rendering view ::\n" );
 	
-	unless ( $view_exists )
-	{
-		$q->report( q|Rendering action map's default view in place of non-existent starting view.| );
-		$render_view = $q->action_map( 'default_view' );
-	}
-	
-	%renderer_params = $q->env( 'renderer_parameters' );
-	$renderer_params{ 'view_start' } = $render_view;
-	$renderer_params{ 'sources' } = [ $q->env( 'view_store' ) ];
-	
 # Block to localize controller access alias for view component.
-# WARM  commented out because otherwise it disallows controller access during debug
-#	report rendering (see c. line 527).
+# WARN  commented out because otherwise it disallows controller access during debug
+#	report rendering (see SENDING RESPONSE, below).
 	#{
-	 no strict 'refs';
-	 local *{ 'Qoan::View' . '::qoan' } = sub {
+	no strict 'refs';
+	local *{ 'Qoan::View' . '::qoan' } = sub {
 		local *__ANON__ = 'controller_access_closure_view';
 		shift() if ref( $_[ 0 ] );
 		return $q->_method( @_ ); };
-	 use strict 'refs';
-	 
-	#my $rendered = $q->view_render( %renderer_params );
-	#$rendered = Encode::encode( 'utf8', $rendered );
-	#Encode::_utf8_on( $rendered );
-	#$q->response( 'body' => $rendered );
-	 $q->response( 'body' => $q->view_render( %renderer_params ) );
-	#}
+	use strict 'refs';
 	
-	warn( 'Response is empty' ) unless $q->response( 'body' );
+	if ( $render_view eq '[[DATA]]' )
+	{
+		$q->response( 'body' => $q->response( 'data' ) );
+	}
+	else  # rendering view from text
+	{
+		unless ( $view_exists )
+		{
+			$q->report( q|Rendering action map's default view in place of non-existent starting view.| );
+			$render_view = $q->action_map( 'default_view' );
+		}
+		
+		%renderer_params = $q->env( 'renderer_parameters' );
+		$renderer_params{ 'view_start' } = $render_view;
+		$renderer_params{ 'sources' } = [ $q->env( 'view_store' ) ];
+		
+		#my $rendered = $q->view_render( %renderer_params );
+		#$rendered = Encode::encode( 'utf8', $rendered );
+		#Encode::_utf8_on( $rendered );
+		#$q->response( 'body' => $rendered );
+		$q->response( 'body' => $q->view_render( %renderer_params ) );
+		#}
+		
+		warn( 'Response is empty' ) unless $q->response( 'body' );
+	}
 	
 	$q->report( "\n:: end render stage ::\n" );
 	
@@ -2223,6 +2296,7 @@ sub process_request
 			$renderer_params{ 'errors' } = [ $q->captured_errors ];
 			
 			$q->response( 'body' => $q->view_render( %renderer_params ) );
+			$q->response( 'header:content-type' => 'text/html' );
 		}
 	}
 	
@@ -2621,21 +2695,29 @@ sub _route_compare
 	$route = shift();
 	$path = shift();
 	
-	#$q->report( "Comparing path $path to route $route .." );
+# Prefix action route with app alias, which will be in the path.
+	$route = $q->env( 'application_alias' ) . $route;
 	
-	$route =~ s|^/||;
+	$q->report( "Comparing path $path to route $route .." );
+	
+# Removing starting / is not necessary due to app alias prefix.
+	#$route =~ s|^/||;
 	@route = split( '/', $route );
 	
+# Symbol substitution in route.
 	for ( @route )
 	{
 		$_ =~ s|^(?::\w+){1,}(\??)$|/$1(\\w+)$1|;
 		$_ = "/$_" unless $_ =~ m|^/|;
 	}
 	
+# Rejoin route segments, postfix with / if in original route.
 	$route_converted = join( '', @route );
+	$route_converted .= '/' if $route =~ m|/$|;
 	
 	#$q->report( "Route converted to $route_converted .." ) if $route ne $route_converted;
 	
+# Comparison and grabs sections named with symbols.
 	@compared = ( $path =~ m|^$route_converted$| );
 	
 	return @compared;

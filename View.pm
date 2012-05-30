@@ -323,7 +323,7 @@ sub _fetch_view
 # the / used to close view tags).
 	$name =~ s|:|/|g;
 	
-	print STDERR "Including view $name..";
+	print STDERR "Including view $name $params..";
 	
 # Check cache for view; fetch if not in cache.
 	unless ( %view = _cache_retrieve( $name ) )
@@ -399,7 +399,7 @@ sub _fetch_view
 	
 	if ( $insert )
 	{
-		$view{ 'text' } =~ s/{{}}/$insert/ or warn 'No interpolation symbol for insertion text';
+		$view{ 'text' } =~ s/{{\s*}}/$insert/ or warn 'No interpolation symbol for insertion text';
 	}
 	
 # Remove any trailing newline char.

@@ -29,11 +29,12 @@ $VERSION = '0.01';
 
 @ISA = qw| Exporter |;
 
-@EXPORT = @EXPORT_OK = qw| request  session  user  controller  get_action_map |;
+#@EXPORT = 
+@EXPORT_OK = qw| request  session  user  qoan  get_action_map |;
 
 
 
-sub controller
+sub qoan  # controller
 {
 	return;
 }

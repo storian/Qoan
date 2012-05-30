@@ -75,16 +75,18 @@ sub http_fetch
 	$headers = shift() || '';
 	$form_data = shift() || '';
 	
-	$controller->report( "Calling: $uri" );
+	$controller->report( 'Calling:' );
+	$controller->report( " $uri" );
 	$controller->report( 'With headers:' );
 	$controller->report( " $_ => $$headers{ $_ }" ) for sort keys %{ $headers };
+	
 	if ( $form_data )
 	{
 		$controller->report( 'And form values:' );
 		$controller->report( " $_ => $$form_data{ $_ }" ) for sort keys %{ $form_data };
 	}
 	
-	$response = $form_data
+	$response = ref( $form_data ) eq 'HASH'
 		? $subrequest->post_form( $uri, $form_data, $headers )
 		: $subrequest->get( $uri, $headers );
 	

@@ -32,7 +32,6 @@ our @ISA = qw| Qoan::Model |;
 #	preserve: preserves file as loaded (whitespace, comments, ordering) - defaults to on if comments found?
 # inline comments?
 
-#sub new ($$)
 sub new
 {
 	my( $class, %cfg, @lines, %cache, $mini );
@@ -74,13 +73,15 @@ sub new
 		{
 			if ( ref( $loc->{ $index } ) eq 'ARRAY' && ! ref $value )
 			{
-				push( @{ $loc->{ $index } }, $value );
-				$cfg{ 'dirty' } = 1;
+				$cfg{ 'dirty' } = 1 if push( @{ $loc->{ $index } }, $value );
+			}
+			elsif ( $value eq 'DROP' )
+			{
+				$cfg{ 'dirty' } = 1 if delete ${ $loc }{ $index };
 			}
 			else
 			{
-				$loc->{ $index } = $value;
-				$cfg{ 'dirty' } = 1;
+				$cfg{ 'dirty' } = 1 if $loc->{ $index } = $value;
 			}
 		}
 		
@@ -117,7 +118,6 @@ sub new
 }
 
 
-#sub cache ($)
 sub cache
 {
 	my( $mini, %set, $compiled );
@@ -134,7 +134,6 @@ sub cache
 }
 
 
-#sub _compile ($$)
 sub _compile
 {
 	my( $ref, $path, $section, $subsection, $k, $v );
@@ -174,7 +173,6 @@ sub _compile
 }
 
 
-#sub get ($;$)
 sub get
 {
 	my( $mini, $index, $thing );
@@ -187,7 +185,6 @@ sub get
 
 
 # Note that this will set nothing if mode is RO.
-#sub set ($$$)
 sub set
 {
 	my( $mini, %set, $index, $value, $ok );
@@ -206,7 +203,6 @@ sub set
 }
 
 
-#sub _load_file ($)
 sub _load_file
 {
 	my( $cfg, $source, @lines, $file );
@@ -232,7 +228,6 @@ sub _load_file
 }
 
 
-#sub _write_file ($$)
 sub _write_file
 {
 	my( $mini, @lines, $source, $file );
@@ -257,7 +252,6 @@ sub _write_file
 }
 
 
-#sub _parse_lines ($$)
 sub _parse_lines
 {
 	my( $cfg, $line, $lines, $add_to, %cache, $section, $name, $value, $evalme, $section_name );

@@ -42,10 +42,13 @@ sub _after_new
 	
 	return ! warn 'Valid request object not received' unless ref( $request );
 	
+# The following loads request parameters into env.
+#  - sensitive to multiple values per input name;
+#  - substitutes true value '1' for params without a value.
 	for ( $request->param )
 	{
 		@multival = $request->param( $_ );
-		$input{ lc( $_ ) } = @multival > 1 ? [ @multival ] : $multival[ 0 ];
+		$input{ lc( $_ ) } = @multival > 1 ? [ @multival ] : ( $multival[ 0 ] || '1' );
 	}
 	
 	$controller->env( 'request' => \%input );

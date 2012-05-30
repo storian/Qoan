@@ -39,13 +39,10 @@ sub _after_new
 	
 	%user_vals = $user->get;
 	
-	$controller->user( 'data' => \%user_vals );
+	$controller->user( %user_vals );
 	%user_vals = $controller->user( 'data' );
 	
 	$controller->report( "added to env:  $_ => $user_vals{ $_ }" ) for sort keys %user_vals;
-	
-# Gives access to the User accessor to the Action Manager.
-	$controller->publish( 'action_manager' => 'user' );
 	
 	return 1;
 }
@@ -59,8 +56,12 @@ sub _before_new
 	
 	return unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
 	
+# Gives access to the User accessor to the Action Manager.
+	$controller->publish( 'action_manager' => 'user' );
+	
 	$userid_variable = $controller->env( 'userid_variable' );
-	$userid = $controller->env( $userid_variable ) || $controller->session( $userid_variable );
+	$userid = $controller->env( $userid_variable );
+	$userid = $controller->session( $userid_variable ) if ! $userid && $controller->can( 'session' );
 	
 # Store user id and user object constructor args to functional env.
 	if ( $userid )
@@ -79,23 +80,6 @@ sub _cleanup
 {
 	1;
 }
-
-
-sub create
-{
-	;
-}
-
-
-#sub set_name
-#{
-#	#return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
-## Shift off evoker.
-#	shift();
-#	
-#	$accessor = shift() unless defined $accessor;
-#	return $accessor;
-#}
 
 
 1;
