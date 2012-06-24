@@ -5,11 +5,11 @@ Qoan works through redirection.  In the previous test, you set up the components
 
 <p>
 <b>The Qoan core installation.</b>
-This is the Qoan directory that you created when you unpacked the Qoan download.  It contains all Qoan's code libraries, and other non-code resources such as views and configuration files.  These resources include "internal" applications, which are applications packaged with the Qoan code.  Qoan's documentation is such an {{quickdef}}internal application{{/quickdef internal_app}}.
+This is the directory named "Qoan" that you created when you unpacked the Qoan download.  It contains all Qoan's code libraries, and other non-code resources such as views and configuration files.  These resources include "internal" applications, which are applications packaged with the Qoan code.  Qoan's documentation is such an {{quickdef}}internal application{{/quickdef internal_app}}.
 
 <p>
 <b>The Qoan applications directory.</b>
-This is the home for all your Qoan applications (each of which should live in its own private directory).  The default recommendation of putting Qoan inside your Qoan apps directory is for convenience only.
+This is the home for all your Qoan applications (each of which should live in its own private directory).  The default recommendation of putting the Qoan core installation inside your Qoan apps directory is for convenience only.
 
 <p>
 <b>The redirection directory.</b>
@@ -18,9 +18,9 @@ This is the public interface to a Qoan application.  Obviously <i>something</i> 
 <p>
 <b>The redirection components:</b>
 <ul>
-<li><b>The .htaccess file.</b>  This file tells the Apache webserver to redirect HTTP requests <i>for any non-existant resource</i> to your Qoan application.  It also prevents Apache from serving up your qoan_redirect.cfg file.
-<li><b>The qoan_redirect.CGI file.</b>  This is the redirection script proper.  It reads the qoan_redirect.cfg file, uses its information to interpret the web request, and then calls the Qoan application script for the request.  You shouldn't ever have to edit this file.
-<li><b>The qoan_redirect.CFG file.</b>  This file is for the information qoan_redirect.cgi requires to know how to redirect web requests.  In the previous test, the only information you had to add was where to look for your Qoan installation.  You may have also noted that it has a line <b>qoan = INTERNAL/qoandocs</b>.  The <b>qoan</b> in that line is the {{quickdef}}public alias{{/quickdef app_public_alias}} for the Qoan documentation application.  The <b>INTERNAL</b> tells qoan_redirect.cgi that this application is an internal application.  The <b>/qoandocs</b> is the {{quickdef}}private alias{{/quickdef app_private_alias}} for the Qoan documentation application.
+<li><b>The .htaccess file.</b>  This file tells the Apache webserver to redirect HTTP requests <i>for any non-existant resource</i> to your Qoan application.  It also prevents Apache from serving up your qoan_redirect.config file.
+<li><b>The qoan_redirect.CGI file.</b>  This is the redirection script proper.  It reads the qoan_redirect.config file, uses its information to interpret the web request, and then calls the Qoan application script for the request.  You shouldn't ever have to edit this file.
+<li><b>The qoan_redirect.CONFIG file.</b>  This file is for the information qoan_redirect.cgi requires to know how to redirect web requests.  In the previous test, the only information you had to add was where to look for your Qoan installation.  You may have also noted that it has a line <b>qoan = INTERNAL/qoandocs</b>.  The <b>qoan</b> in that line is the {{quickdef}}public alias{{/quickdef app_public_alias}} for the Qoan documentation application.  The <b>INTERNAL</b> tells qoan_redirect.cgi that this application is an internal application.  The <b>qoandocs</b> is the {{quickdef}}private alias{{/quickdef app_private_alias}} for the Qoan documentation application.
 </ul>
 
 <p>

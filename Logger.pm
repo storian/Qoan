@@ -7,8 +7,6 @@ our $VERSION;
 
 $VERSION = '0.03';
 
-#use Tie::Handle;
-#our @ISA = q| Tie::Handle |; 
 
 my( $real_stderr, $stderr_duped, $capturing_output, $passthrough, $redirector );
 my( $captured_output, @captured_errors, @ignore_errors );
@@ -138,7 +136,7 @@ sub _capture_off
 # "untie attempted while 2 inner references still exist".
 # This appears to be related to the REPORT handle used in TIEHANDLE;
 # However, closing STDERR is all that's needed to stop the warning.
-	if ( close( STDERR ) && untie( *STDERR ) && open( STDERR, ">&", $real_stderr ) )
+	if ( untie( *STDERR ) && open( STDERR, ">&", $real_stderr ) )
 	{
 		$capturing_output = 0;
 		$redirector = '';
@@ -147,7 +145,7 @@ sub _capture_off
 	else
 	{
 # WARN  how to tell if ! *STDERR untied or ! STDERR reopened?
-		print $real_stderr q|Failed to turn off output capture|;
+		print $real_stderr qq|Failed to turn off output capture\n\n|;
 	}
 }
 
@@ -213,6 +211,20 @@ sub capturing
 	
 	return $capturing_output;
 }
+
+
+# NOTE: CLOSE no longer needed after resolving untie's inner refs issue.
+#sub CLOSE
+#{
+## Note:
+##  The CLOSE method is expected by sub _capture_off's if-block start line.
+##  Without it, that line raises a fatal error.  We need to return a true value
+##  here or _capture_off does not work correctly.  We can try to close whatever
+##  argument we get here, but if it is this sub's RETURN value, another fatal
+##  is raised.  This stuff is confusing.
+#	close $_[ 0 ] if ref( $_[ 0 ] ) eq 'GLOB';
+#	return 1;
+#}
 
 
 sub flush_captured
@@ -333,9 +345,15 @@ sub PRINTF
 }
 
 
+# Learning: originally had this as:
+#    return bless \*REPORT, __PACKAGE__;
+# This caused warnings re multiple inner references when untying STDERR
+# in sub _capture_off, above.  Changed blessed var to a scalar and that
+# seems to stop the inner references issue.
 sub TIEHANDLE
 {
-	return bless \*REPORT, __PACKAGE__;
+	my $report;
+	return bless \$report, shift;
 }
 
 

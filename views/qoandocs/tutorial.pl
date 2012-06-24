@@ -9,6 +9,9 @@ return '{{tutorial_index/}}' unless $name;
 my( $s );
 my( %longtitle, %shorttitle, $pages, $next, $link_list, $link_next, $link_full, $tutorial_body );
 
+# Prevents "undefined" warnings for interpolation into $s, below.
+$link_list = $link_full = $tutorial_body = $link_next = '';
+
 
 %longtitle = (
 	'manual_setup' => 'Manual Set-up',

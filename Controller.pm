@@ -307,14 +307,14 @@ sub _action_execute
 	if ( ref( $handler ) ne 'CODE' )
 	{
 # If no handler but the request is a GET, skip execution with success.
-		if ( ! $q->is_write_request )
+		if ( ! $q->is_post_request )
 		{
 			$q->report( 'Not a write request; skipping stage with success.' );
 			return 1;
 		}
 		
 # If no handler and the request is a POST, Fail execution.
-		if ( $q->is_write_request )
+		if ( $q->is_post_request )
 		{
 			$q->report( 'Failed execution due to missing handler on POST.' );
 			$q->env( 'render_view' => $q->action_map( "$action:view_on_fail" ) );
@@ -367,18 +367,17 @@ sub _action_identify ($)
 		@order = sort { ( $map{ $a }{ 'order' } || ++$i ) <=> ( $map{ $b }{ 'order' } || ++$i ) }
 			grep { ref( $map{ $_ } ) eq 'HASH' } keys %map;
 		$req_uri = $q->env( 'uri:virtual' );
+		$q->report( "Identifying action, request URI: $req_uri" );
 		
 		for $action ( @order )
 		{
 # NEXT THING HERE: @ROUTES ??
 			$route = $map{ $action }{ 'route' };  # just to make next line readable
-			#@routes = ref( $route ) eq 'ARRAY' ? @{ $route } : $route;
-			$q->report( "Comparing URI to route for action:  $action.." );
+			$q->report(qq|Action:  \U$action| );
 			
-			#for ( @routes )
 			for ( ref( $route ) eq 'ARRAY' ? @{ $route } : $route )
 			{
-				$q->report( " route: $_" );
+				$q->report( " route:  $_" );
 				
 				if ( @compared = $q->_route_compare( $_, $req_uri ) )
 				{
@@ -598,8 +597,8 @@ sub app_package
 }
 
 
-# Purpose:  x
-# Context:  x
+# Purpose:  For storage/retrieval of globs of data which do not belong anywhere else
+# Context:  Public.  Published to AM/view by default.
 # Receives: x
 # Returns:  x
 # External: x
@@ -638,12 +637,14 @@ sub clipboard
 # NO - not useful because it requires id'ing the object. called by non-object_accessor with 'DATA' parameter: returns object values from env
 
 # NOTE on sub component:
-#  designed only to set one settings/data value at a time.
 #  only writes to *specific* sections of env; changes received key.
 
-# Purpose:  x
-# Context:  x
-# Receives: x
+# Purpose:  provides access to component objects (calls closure directly),
+#           or stored component settings or data (calls sub env).
+# Context:  Should only be called by Interfaces accessors.
+#           Non-accessor callers highly restricted.  Disallow completely?
+# Receives: 1) controller ref or class name
+#           .) 
 # Returns:  x
 # External: x
 #
@@ -651,7 +652,8 @@ sub component
 {
 	my( $q, @params, $i );
 	my( $writing, $reading, $caller );
-	my( %component_list, $name, $settings );
+	#my( %component_list, $name, $settings );
+	my( %component_list, $component_name, $component_pkg );
 	my( $load_obj, $unload_obj, $get_obj, $data_call, $settings_call );
 	
 	$q = shift();
@@ -666,133 +668,133 @@ sub component
 		
 	$caller = ( caller( 1 ) )[ 3 ];
 	
-	#if ( ref( $param ) eq 'HASH' || ref( $param ) eq 'ARRAY' )
-	#{
-	#	$q->warn( "$caller called component routine with disallowed parameter @{[ ref $param ]}" );
-	#	return;
-	#}
+# External a)
+	return $q->env( "component:$params[ 0 ]" ) unless $caller =~ m|::accessor$|;
 	
-	if ( $caller =~ m|::accessor$| )
+# External b)
+	%component_list = $q->env( 'component' );
+	
+#	while ( ( $name, $settings ) = each %component_list )
+#	#while ( ( $name, $settings ) = each %{ $q->env( 'component' ) } )
+#	{
+#		last if $caller =~ m|^${ $settings }{ 'interface' }|;
+#	}
+	for ( keys %component_list )
 	{
-		%component_list = $q->env( 'component' );
-		
-		while ( ( $name, $settings ) = each %component_list )
-		#while ( ( $name, $settings ) = each %{ $q->env( 'component' ) } )
-		{
-			last if $caller =~ m|^${ $settings }{ 'interface' }|;
-		}
-		
+		next unless $caller =~ m|^${ $component_list{ $_ } }{ 'interface' }|;
+		#$name = $_;
+		#$settings = $component_list{ $_ };
+		$component_name = $_;
+		$component_pkg = $component_list{ $_ }->{ 'module' };
+		last;
+	}
+	
+	return unless $component_name && $component_pkg;
+	
 # Component can interact with the component objects, the stored component settings,
 # or data loaded from the component to the functional env.
 # For the latter two, component changes the parameter to refer to the appropriate
 # section of %env, which allows access to specific values in those sections.
-		
-		$load_obj = $unload_obj = $get_obj = $data_call = $settings_call = 0;
-		
+	
+	$load_obj = $unload_obj = $get_obj = $data_call = $settings_call = 0;
+	
 # Note that unloading can only happen during the unload stage; but loading
 # is not restricted to a stage, because we might need to create a component
 # during the request.
-		$load_obj = 1 if ref( $params[ 0 ] ) eq $settings->{ 'module' } &&
-			! defined( $q->( $name ) );
+# External c)
+	#$load_obj = 1 if ref( $params[ 0 ] ) eq $settings->{ 'module' } &&
+	$load_obj = 1 if ref( $params[ 0 ] ) eq $component_pkg &&
+		! defined( $q->( $component_name ) );
 # Note, following is for when main closure returns '' (instead of nothing)
 # on request for non-existent member.
-			#! $q->( $name );
-		$unload_obj = 1 if $params[ 0 ] eq 'remove' &&
-			$q->request_stage( 'current' => 'unload' );
-		$get_obj = 1 if ! $params[ 0 ];
-		
+		#! $q->( $component_name );
+# External d)
+	$unload_obj = 1 if $params[ 0 ] eq 'remove' &&
+		$q->request_stage( 'current' => 'unload' );
+	$get_obj = 1 if ! $params[ 0 ];
+	
 # Component object related.
-		if ( $load_obj || $unload_obj || $get_obj )
-		{
-			return $get_obj
-				? $q->( $name )
-				: $q->( $name => $params[ 0 ] );
-		}
-		
+	if ( $load_obj || $unload_obj || $get_obj )
+	{
+# External e), f)
+		return $get_obj
+			? $q->( $component_name )
+			: $q->( $component_name => $params[ 0 ] );
+	}
+	
 # Step through key parameters and evaluate whether they are for
 # Data or Settings.
+	for ( $i = 0; $i < @params; $i += 2 )
+	{
+		$data_call = 1 if $params[ $i ] =~ m|^data\b|i;
+		$settings_call = 1 if $params[ $i ] =~ m|^settings\b|i;
+	}
+	
+# It can't be both!
+	if ( $data_call && $settings_call )
+	{
+		warn 'Component accessor received mixed data and settings call: ' .
+			join( ', ', @params );
+		return 0;
+	}
+	
+# If caller has not specified Data or Settings, apply instantiation rule.
+	unless ( $data_call || $settings_call )
+	{
+# External g)
+		$data_call = 1 if defined( $q->( $component_name ) );
+		$settings_call = 1 if ! defined( $q->( $component_name ) );
+		
 		for ( $i = 0; $i < @params; $i += 2 )
 		{
-			$data_call = 1 if $params[ $i ] =~ m|^data\b|i;
-			$settings_call = 1 if $params[ $i ] =~ m|^settings\b|i;
+			$params[ $i ] = "data:$params[ $i ]" if $data_call;
+			$params[ $i ] = "settings:$params[ $i ]" if $settings_call;
 		}
-		
-# It can't be both!
-		if ( $data_call && $settings_call )
-		{
-			warn 'Component accessor received mixed data and settings call: ' .
-				join( ', ', @params );
-			return 0;
-		}
-		
-# If caller has not specified Data or Settings, apply instantiation rule.
-		unless ( $data_call || $settings_call )
-		{
-			$data_call = 1 if defined( $q->( $name ) );
-			$settings_call = 1 if ! defined( $q->( $name ) );
-			
-			for ( $i = 0; $i < @params; $i += 2 )
-			{
-				$params[ $i ] = "data:$params[ $i ]" if $data_call;
-				$params[ $i ] = "settings:$params[ $i ]" if $settings_call;
-			}
-		}
-		
-		if ( $reading )
-		{
-			#$data_call = ( $params[ 0 ] =~ s|^data|$name|i );
-			#$settings_call = ( $params[ 0 ] =~ s|^settings|component:$name|i );
-			
-			#if ( $data_call || $settings_call )
-			#{
-				$params[ 0 ] =~ s|^data|$name|i if $data_call;
-				$params[ 0 ] =~ s|^settings|component:$name|i if $settings_call;
-				
-				return $q->env( $params[ 0 ] );
-			#}
-		}
-		elsif ( $writing )
-		{
-			for ( $i = 0; $i < @params; $i += 2 )
-			{
-				#$data_call = ( $params[ $i ] =~ s|^data|$name|i );
-				#$settings_call = ( $params[ $i ] =~ s|^settings|component:$name|i );
-				$params[ $i ] =~ s|^data|$name|i if $data_call;
-				$params[ $i ] =~ s|^settings|component:$name|i if $settings_call;
-			}
-			
-			return $q->env( @params );
-		}
-		
-		warn "Component routine unable to fulfill request from $caller";
 	}
-	else
+	
+	if ( $reading )
 	{
-		return $q->env( "component:$params[ 0 ]" );
+		$params[ 0 ] =~ s|^data|$component_name|i if $data_call;
+		$params[ 0 ] =~ s|^settings|component:$component_name|i if $settings_call;
+		
+# External h)
+		return $q->env( $params[ 0 ] );
 	}
+	elsif ( $writing )
+	{
+		for ( $i = 0; $i < @params; $i += 2 )
+		{
+			$params[ $i ] =~ s|^data|$component_name|i if $data_call;
+			$params[ $i ] =~ s|^settings|component:$component_name|i if $settings_call;
+		}
+		
+# External h)
+		return $q->env( @params );
+	}
+	
+# External i)
+	warn "Component routine unable to fulfill request from $caller";
 }
 
 
-# method ENV  (public, object)
-# purpose:
-#	Access to object's functional environment.
-#	The functional env is read-write before request processing begins; then
-#	stored values become read-only.  New values may be added (and are read-only).
-# usage:
-#	Self.
-#	Optionally: a value key;
-#	  or list of hash refs of env settings and config file names to load.
-
 # Purpose:  read and write the env for base/request-context closures
-# Context:  Public.  Restricts writing based on caller.
+# Context:  Public.  Published to AM/view by default.
+#           Restricts writing based on caller.
 # Receives: 1) controller ref or class name
-#           .) 1+ params; reading if 1; writing if >1
+#           .) 0+ params; reading if 0 or 1; writing if >1
+#              if 1st param is an array, it's a list of config files to load.
 # Returns:  1) entire env if no params received
-#           2) implicit undef if writing but env is "not editable"
+#           2) implicit undef if writing (2+ params) but env is "not editable"
 #           3) literal 1 if loading from a config value set
 #           4) requested value if reading
 #           5) result of main closure call if writing (last value written)
-# External: x
+# External: a) calls main closure with no params (gets entire env)
+#           b) flattens env (no nested structure, no refs)
+#           c) calls main closure with single param (reading)
+#           ?) 
+#           d) calls retrieve_config routine
+#           e) calls to main closure to check for existing values
+#           f) calls main closure with multiple params (writing)
 #
 sub env
 {
@@ -831,6 +833,7 @@ sub env
 #	if ( $caller eq 'Qoan::Controller::component' )
 #	{
 #		my( $component ) = ( ( keys %writing )[ 0 ] =~ m|^(\w+):| )[ 0 ];
+# External ?)
 #		$editable = 1 if $q->( "component:$component:rewritable" ) eq '1';
 #	}
 	
@@ -844,7 +847,8 @@ sub env
 		for ( @{ $cfg_load } )
 		{
 # External d)
-			$q->( __PACKAGE__->retrieve_config( $_ ) ) if ! ref $_;
+			#$q->( __PACKAGE__->retrieve_config( $_ ) ) if ! ref $_;
+			$q->( $q->retrieve_config( $_ ) ) if ! ref $_;
 			$q->( %{ $_ } ) if ref( $_ ) eq 'HASH';
 		}
 		
@@ -1185,7 +1189,7 @@ sub import
 # External: a) checks request processing has started
 #           b) fetches 'sys_env:request_method' from env
 #
-sub is_write_request
+sub is_post_request
 {
 	my( $q ) = shift();
 	
@@ -1197,15 +1201,15 @@ sub is_write_request
 
 
 # Purpose:  load a component for Qoan
-# Context:  callable only by sub import, sub process_request, a Qoan interface
+# Context:  callable only by sub import, sub process_request, or a Qoan interface
 # Receives: 1) controller ref
 #           2) component name (string)
 #           3) component property hash (used by sub import)
 # Returns:  1) implicit undef if disallowed caller
-#           2) 1 or 0 literals
+#           2) 1 or 0 literals for a series of checks
 # External: a) checks allowed caller
 #           b) fetches component properties if not supplied w/ parameter
-#           c) calls sub report
+#           c) calls controller report
 #           d) requires component interface package via sub _require
 #           e) imports from component interface package
 #           f) checks that current request stage is 'load'
@@ -1443,26 +1447,29 @@ sub map_view
 }
 
 
-# Purpose:  provides access to controller methods for components
+# Purpose:  provides components with access to controller methods
 # Context:  Private but not enforced
 # Receives: 1) controller ref
 #           2) name of method to execute (string)
 #           .) 1+ parameters for method
-# Returns:  1) implicit undef in some cases of fail
-#           2) external: result of requested method
+# Returns:  1) implicit undef if no parameters received
+#           2) implicit undef if calling component not established
+#           3) implicit undef if method requested not allowed
+#           4) external: result of requested method
 # External: a) fetches complete component list
 #           b) fetches 'action_manager:name' from env
 #           c) fetches app package name
 #           d) calls warn
 #           e) fetches published list for component
-#           f) calls requested method
+#           f) submits _method status to controller report
+#           g) calls requested method
 #
 sub _method
 {
 	my( $q, $method, @params, $calling_pkg, %components, $component, %allowed, $env_allowed );
 	
 	$q = shift();
-	@params = @_;
+	return unless @params = @_;
 	
 	$method = '';
 	$calling_pkg = '';
@@ -1484,7 +1491,6 @@ sub _method
 # External b), c)
 	$component = 'action_manager' if $calling_pkg eq ( $q->env( 'action_manager:name' ) || '' ) ||
 		$calling_pkg eq $q->app_package;
-	#$q->report( "Component making _method call: $component ($calling_pkg)" );
 	
 	unless ( $component )
 	{
@@ -1497,7 +1503,9 @@ sub _method
 # Find requested method in published list for component.
 # External e)
 	%allowed = $q->publish( $component );
-	#$q->report( " _meth: $_ => $allowed{ $_ }" ) for sort keys %allowed;
+	
+# External f)
+	$q->report( "Method request for: $params[ 0 ], by: $component ($calling_pkg)" );
 	
 	for ( keys %allowed )
 	{
@@ -1507,6 +1515,9 @@ sub _method
 	}
 	
 # External f)
+	$q->report( " => @{[ $method ? '' : 'not ' ]}allowed" );
+	
+# External g)
 	return $q->$method( @params ) if $method;
 	return;
 }
@@ -1515,7 +1526,7 @@ sub _method
 # Purpose:  controller constructor
 # Context:  callable by sub process_request & app package (e.g. "main").
 #           Explicitly *not* callable by any other Qoan module.
-# Receives: 1) class name (package name of controller of subclasser)
+# Receives: 1) class name (package name of controller or subclasser)
 # Returns:  1) implicit undef for disallowed caller
 #           2) Qoan controller object
 # External: a) checks allowed caller
@@ -1752,9 +1763,9 @@ sub process_request
 	my( $loaded );
 # UNLOAD only
 	my( $unloaded );
-# ACTION, determine action manager/map
+# MAP
 	my( $am_package, $am_origin, $am_route, $am_loaded, $using_internal_get_action );
-# ACTION, execution
+# ACTION
 	my( $action_stage, $stage_ok );
 	# also am_package, am_loaded, render_view, view_source
 # RENDERING
@@ -1791,28 +1802,43 @@ sub process_request
 # URI SHIT.  Kind of Argh.  Clean this up somehow.
 # Get request header.
 # Prepend with slash and remove query string if any.
-	my( $uri_virt, $uri_lead, $docroot, $alias, $virt_alias );
-	$uri_virt = $q->env( 'sys_env:' . $q->env( 'uri_source_header' ) );
-	$uri_virt = "/$uri_virt" unless $uri_virt =~ m|^/|;
-	$uri_virt =~ s|\?.*$|| if $q->env( 'uri_source_header' ) eq 'request_uri';
+	my( $uri_virtual, $uri_app_root, $docroot, $alias, $virt_alias, $recd_private );
+	$alias = $ARGV[ 0 ];
 	$docroot = $q->env( 'sys_env:document_root' );
-	$uri_lead = '';
-	for ( split( '/', $uri_virt ) )
+	$uri_virtual = $q->env( 'sys_env:' . $q->env( 'uri_source_header' ) );
+# If the received alias is *not* in the request URI, then the redirect_cfg file uses
+# different public and private aliases.
+	$recd_private = ( $uri_virtual !~ m|$alias| ? 1 : 0 );
+	$uri_virtual = "/$uri_virtual" unless $uri_virtual =~ m|^/|;
+	$uri_virtual =~ s|\?.*$|| if $q->env( 'uri_source_header' ) eq 'request_uri';
+	$uri_app_root = '';
+	for ( split( '/', $uri_virtual ) )
 	{
 		next unless $_;
-		last unless -e "$docroot$uri_lead/$_";
-		$uri_lead .= "/$_";
+		last unless -e "$docroot$uri_app_root/$_";
+		$uri_app_root .= "/$_";
+		print "uri: lead: $uri_app_root";
 	}
-	$uri_virt =~ s|^$uri_lead||;
+	$uri_virtual =~ s|^$uri_app_root||;
 # "uri:alias:virtual" means that the app alias is in the URI's virtual part ONLY.
 # The default is to use a directory as the resource "mask" for the app, and
 # the dir name serves as the public app alias, hence not virtual.
-	$alias = $ARGV[ 0 ];
-	$virt_alias = ( $uri_lead =~ m|$alias$| ? 0 : 1 );
+	if ( ! $recd_private )
+	{
+		$virt_alias = ( $uri_app_root =~ m|$alias$| ? 0 : 1 );
+		$uri_virtual = "/$alias" . $uri_virtual unless $q->env( 'uri:alias:virtual' );
+	}
+	else
+	{
+		$virt_alias = 0;
+		$uri_virtual = '/' . ( $uri_app_root =~ m|(\w+)$| )[ 0 ] . $uri_virtual;
+	}
+	$q->env( 'uri:alias:received_private' => "$recd_private" );
 	$q->env( 'uri:alias:virtual' => "$virt_alias" );
-	$uri_virt = "/$alias" . $uri_virt unless $q->env( 'uri:alias:virtual' );
-	$q->env( 'uri:virtual' => $uri_virt );
-	$q->env( 'uri:lead' => $uri_lead );
+	$q->env( 'uri:alias:public' => ( $uri_virtual =~ m|^/?(\w+)| )[ 0 ] );  #unless $q->env( 'uri:alias:public' );
+	$q->env( 'uri:alias:private' => $recd_private ? $alias : ( $uri_virtual =~ m|^/?(\w+)| )[ 0 ] );
+	$q->env( 'uri:virtual' => $uri_virtual );
+	$q->env( 'uri:app_root' => $uri_app_root );
 	$q->env( 'uri:alias:argv' => $alias );
 	
 	
@@ -1911,7 +1937,7 @@ sub process_request
 # If there is no action manager for a GET request, and auto get is available.
 			if ( ! $am_package )
 			{
-				( $q->is_write_request || ! $q->env( 'allow_default_get_action' ) )
+				( $q->is_post_request || ! $q->env( 'allow_default_get_action' ) )
 					? warn( "No action manager found for WRITE request or for GET with auto get unavailable\n" )
 					: $q->report( "No action manager found for GET request, auto get available.\n" );
 			}
@@ -1946,11 +1972,11 @@ sub process_request
 # B.2.vii
 # If no Action Manager, and it's a GET request and default gets are allowed, set action
 # map to default get.
-	elsif ( ! $q->is_write_request && $q->env( 'allow_default_get_action' ) )
+	elsif ( ! $q->is_post_request && $q->env( 'allow_default_get_action' ) )
 	{
 		$q->action_map( 'default_action' => 'get',
 				'default_view' => 'index',
-				'get' => { 'route' => '/?\w+/:view' } );
+				'get' => { 'route' => '/:view' } );
 		$using_internal_get_action = 1;
 	}
 	 
@@ -1961,10 +1987,7 @@ sub process_request
 		warn 'Failed to locate action map.';
 	}
 	
-# Application alias.
-	$q->env( 'application_alias' => ( $q->env( 'uri:virtual' ) =~ m|^/?(\w+)| )[ 0 ] ) unless $q->env( 'application_alias' );
-	
-	$q->report( "public app alias:        @{[ $q->env( 'application_alias' ) ]}" );
+	$q->report( "public app alias:        @{[ $q->env( 'uri:alias:public' ) ]}" );
 	$q->report( "action manager loaded?   @{[ $am_loaded ? 'yes' : 'NO' ]}" );
 	$q->report( "action manager:          @{[ $am_loaded ? $am_package : 'none' ]}" );
 	$q->report( "action manager alias:    @{[ $q->env( 'action_manager:alias' ) ]}" );
@@ -2619,7 +2642,8 @@ sub _require
 # RESPONSE only allows the response body and status to be set by the process request
 # handler.  Any caller can set headers.
 # Purpose:  Retrieve response value or write to response store.
-# Context:  Any allowed, but only sub process_request may write.
+# Context:  Public.  Published to AM by default.
+#           Only sub process_request may write response body/status.
 #           Any caller can set headers.
 #           1) sub process_request
 #           2) ?
@@ -2695,10 +2719,10 @@ sub _route_compare
 	$route = shift();
 	$path = shift();
 	
-# Prefix action route with app alias, which will be in the path.
-	$route = $q->env( 'application_alias' ) . $route;
+# Prefix action route with public app alias, which will be in the path.
+	$route = $q->env( 'uri:alias:public' ) . $route;
 	
-	$q->report( "Comparing path $path to route $route .." );
+	#$q->report( "Comparing path $path to route $route .." );
 	
 # Removing starting / is not necessary due to app alias prefix.
 	#$route =~ s|^/||;

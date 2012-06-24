@@ -10,11 +10,11 @@ This too will not break anything.  However, Qoan contains a lot of non-code reso
 
 <p>
 <b>I want to install Qoan's code with my Perl modules and the other stuff somewhere else.</b><br />
-That's fine; however, Qoan will no longer know by default where to find these resources.  If you don't want to use them, then it's no big deal.  If you do, you will have to configure your Qoan applications to supply this information to Qoan.
+That's fine; however, Qoan will no longer know by default where to find these resources.  If you don't want to use them, then it's no big deal.  If you do, you will have to configure your Qoan applications to supply this information to Qoan.  (Basically, this means setting additional view and config paths.)
 
 <p>
 <b>I don't want to install Qoan with my Qoan applications.</b><br />
-You can keep Qoan and your Qoan applications in separate directories.  This arrangment will break one thing in Qoan: its internal applications (which includes its documentation).  If you don't want to use them, then this is another example of no big deal.  If you do, you can make them available by adding a line for <b>apps_home</b> and setting it to the <i>absolute</i> path to your Qoan applications directory.
+You can keep Qoan and your Qoan applications in separate directories.  This arrangment will break one thing in Qoan: its internal applications (which includes its documentation).  If you don't want to use them, then this is another example of no big deal.  If you do, you can make them available by adding a line for <b>apps_home</b> to the redirect config file and setting it to the <i>absolute</i> path to your Qoan applications directory.
 
 <p>
 <b>I don't want to use one Qoan applications directory.</b><br />
@@ -37,7 +37,7 @@ The best Qoan can do is to let you run an app directly from the web server's pub
 <ul>
 <li>Renaming .htaccess files means Apache will not find them, which will break the redirection chain.
 <li>Renaming the Qoan installation directory will break Qoan, as all its libraries are identified with the name "Qoan".
-<li>Renaming qoan_redirect.cfg means you will have to edit qoan_redirect.cgi, as it expects that name.
+<li>Renaming qoan_redirect.config means you will have to edit qoan_redirect.cgi, as it expects that name.
 <li>Renaming qoan_redirect.cgi means you will have to edit your .htaccess files, as they expect that name.
 </ul>
 

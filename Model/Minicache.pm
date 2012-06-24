@@ -173,9 +173,19 @@ sub _compile
 }
 
 
+sub drop
+{
+	my( $mini, $index );
+	$mini = shift();
+	$index = shift();
+	
+	return $mini->( $index, 'DROP' );
+}
+
+
 sub get
 {
-	my( $mini, $index, $thing );
+	my( $mini, $index );
 	$mini = shift();
 	$index = shift();
 	

@@ -189,10 +189,10 @@ sub create
 			gmtime( time() + $controller->env( 'cookie:expires_in' ) ) );
 		
 		$sessionid_variable = $controller->env( 'sessionid_variable' );
-# Note, we prepend with uri:lead in case the Qoan redirector lives below the httpd docroot.
-		#$app_path = $controller->env( 'uri:lead' ) .
+# Note, we prepend with uri:app_root in case the Qoan redirector lives below the httpd docroot.
+		#$app_path = $controller->env( 'uri:app_root' ) .
 		#	'/' . $controller->env( 'application_alias' );
-		$app_path = $controller->env( 'uri:lead' );
+		$app_path = $controller->env( 'uri:app_root' );
 		$app_path .= '/' . $controller->env( 'application_alias' ) if $controller->env( 'uri:alias:virtual' );
 		
 # Note the cookie is good for the entire /story application.  The session will

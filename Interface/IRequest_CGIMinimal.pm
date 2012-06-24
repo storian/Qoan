@@ -1,6 +1,5 @@
 
 package Qoan::Interface::IRequest_CGIMinimal;
-our $VERSION = '0.03';
 
 # Qoan::Interface::Request
 # 
@@ -10,9 +9,8 @@ our $VERSION = '0.03';
 use strict;
 use Qoan::Interface ();
 
+our $VERSION = '0.03';
 our @ISA = qw| Qoan::Interface |;
-
-#my( $accessor );
 
 
 sub accessor
@@ -74,17 +72,6 @@ sub _before_new
 	
 	return 1;
 }
-
-
-#sub set_name
-#{
-#	#return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
-## Shift off evoker.
-#	shift();
-#	
-#	$accessor = shift() unless defined $accessor;
-#	return $accessor;
-#}
 
 
 1;

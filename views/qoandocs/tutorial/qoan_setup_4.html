@@ -18,16 +18,16 @@ The verification test redirection components expect the redirection folder you p
 <li>Instead of verify test instruction step 1, select or create another directory farther down in the public directory area;
 <li>Follow the verify test instructions through step 4;
 <li>Edit the <b>RewriteBase</b> line in the .htaccess file to have the full path from your web server's document root to the qoan directory you have created, including the qoan directory;
-<li>Add a line to the qoan_redirect.cfg file for the value <b>redirect_home</b> and set it to the path from your web server's document root to the qoan directory, <b>not</b> including the qoan directory.
+<li>Add a line to the qoan_redirect.config file for the value <b>redirect_home</b> and set it to the path from your web server's document root to the qoan directory, <b>not</b> including the qoan directory.
 </ul>
 
 <p>
 <b>Location of the Qoan installation.</b><br />
-The qoan_redirect.cfg file must contain the correct <i>absolute</i> path to your Qoan installation.  If you have a typo in the path you entered, the verification will not succeed.
+The qoan_redirect.config file must contain the correct <i>absolute</i> path to your Qoan installation.  If you have a typo in the path you entered, the verification will not succeed.
 
 <p>
 <b>Names of the redirection files.</b><br />
-The names of the redirection files must be <b>.htaccess</b>, <b>qoan_redirect.cgi</b>, and <b>qoan_redirect.cfg</b>.  You must have all three files in the redirection directory or the verification will not succeed.
+The names of the redirection files must be <b>.htaccess</b>, <b>qoan_redirect.cgi</b>, and <b>qoan_redirect.config</b>.  You must have all three files in the redirection directory or the verification will not succeed.
 
 <p>
 <b>Permissions on the redirection files.</b><br />
