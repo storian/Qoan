@@ -1,26 +1,51 @@
 
-package Qoan::Config;
+package Qoan::Interface::IConfig_YAMLTiny;
 
-# Configuration file access.
+# Configuration file access through limited YAML.
 #
 
 use strict;
 
-our $VERSION = '0.02';
-
-use Qoan::Model::Minicache;
+our $VERSION = '0.01';
 
 
+my( $cfg_handler );
 my( $default_cfg_dir, %files );
 
 ( $default_cfg_dir = ( caller( 1 ) )[ 1 ] ) =~ s|[^/]+$||;
 $default_cfg_dir .= 'configs/';
 
 
+sub accessor
+{
+	my( $controller ) = shift();
+	
+	$cfg_handler = shift() if ref( $_[ 0 ] ) eq 'YAML::Tiny' && ! defined( $cfg_handler );
+	
+	return $cfg_handler unless @_;
+	return $controller->component( @_ );
+}
+
+
+sub _before_new
+{
+	my( $controller ) = shift();
+	
+	return undef unless $controller->_allowed_caller( 'eq' => [ 'Qoan::Controller::_load_component' ] );
+	return 1;
+}
+
+
+# Sub load_config returns a true or false value depending on
+# whether the file to load exists/successfully loads.
 sub load_config
 {
+	my( $controller );
+	
+	$controller = shift();
+	
 # WARN  This package-name check is likely not sufficient.
-	shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
+	#shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
 	
 	my( $path, $file_name, $settings );
 	
