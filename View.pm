@@ -13,6 +13,12 @@ my( %cache, %cache_cfg );
 %cache_cfg = ( 'last_expiration_check' => time(), 'cache_expiration' => 10 );
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub new
 {
 	return if _called_by_evaled_view();
@@ -49,6 +55,12 @@ sub new
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub cache_cfg
 {
 	return if _called_by_evaled_view();
@@ -61,6 +73,12 @@ sub cache_cfg
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub cache_expire
 {
 	return if _called_by_evaled_view();
@@ -89,6 +107,12 @@ sub cache_expire
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub cache_purge
 {
 	return if _called_by_evaled_view();
@@ -97,6 +121,12 @@ sub cache_purge
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub _cache_retrieve
 {
 	return unless ( caller( 1 ) )[ 3 ] eq 'Qoan::View::_fetch_view';
@@ -106,6 +136,12 @@ sub _cache_retrieve
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub _cache_skip
 {
 	return unless ( caller( 1 ) )[ 3 ] eq 'Qoan::View::_fetch_view';
@@ -128,6 +164,12 @@ sub _cache_skip
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub _cache_store
 {
 	return unless ( caller( 1 ) )[ 3 ] eq 'Qoan::View::_fetch_view';
@@ -141,6 +183,12 @@ sub _cache_store
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub get_cfg
 {
 	my( $renderer, $cfg_index );
@@ -163,6 +211,12 @@ sub get_cfg
 #			view_start: name/ID of starting view
 #			sources: where to search for view (e.g., filesys dirs, db connect strings)
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub render_view
 {
 	return if _called_by_evaled_view();
@@ -203,9 +257,6 @@ sub render_view
 	{
 		$renderer->( $_ => $params{ $_ } );
 	}
-	
-# Turn starting view name into interpolation symbol.
-	$view = '{{' . $params{ 'view_start' } . '/}}';
 	
 # The REGULAR EXPRESSIONS.
 #  Checks for interpolation symbols in view text - finds either simple symbols {{*/}}
@@ -251,6 +302,9 @@ sub render_view
 		) # end conditional
 		@xs;
 	
+# Turn starting view name into interpolation symbol.
+	$view = '{{' . $params{ 'view_start' } . '/}}';
+	
 	while ( $view =~ m@$re_check@ )
 	{
 		$i++;
@@ -286,21 +340,22 @@ sub render_view
 }
 
 
-# method _FETCH_VIEW
-# purpose:
-#		Fetches the text for a single view for the _build_view
-#		routine.  Evals if it is an executable view.
-# usage:
-#		- request object ref
-#		- name of view
-#		- parameters for executable view (string)
-#		- text to insert if it is a wrapper view
-#		NOTE: currently it is necessary always to supply a
-#		$params in order to supply an $insert, to prevent
-#		_fetch_view from getting confused.  However, only
-#		_build_view calls (and should call) this sub, so it
-#		shouldn't be an inconvenience for anyone.
-
+# Purpose:  Locates view in available resources, fetches view text, passes to filter.
+# Context:  Private, callable only by sub render_view.
+# Receives: 1) renderer ref
+#           2) view name
+#           3) optional parameter string for use in view processing
+#           4) optional insertion text for wrapping view tags
+# Returns:  Processed view text.
+# External: a) prints to STDERR
+#           b) globs filenames in a source directory
+#           c) opens/closes view file
+#           d) calls warn
+#           e) db call -- NOT IMPLEMENTED
+#           f) calls sub _cache_skip
+#           g) calls sub _cache_store
+#           h) calls sub _eval_view
+#
 sub _fetch_view
 {
 	return unless ( caller( 1 ) )[ 3 ] eq 'Qoan::View::render_view';
@@ -323,6 +378,7 @@ sub _fetch_view
 # the / used to close view tags).
 	$name =~ s|:|/|g;
 	
+# External a)
 	print STDERR "Including view $name $params..";
 	
 # Check cache for view; fetch if not in cache.
@@ -335,6 +391,7 @@ sub _fetch_view
 			for ( @{ $renderer->( 'sources' ) } )
 			{
 				$view{ 'source' } = $_;
+# External b)
 				@globbed = glob( "$view{ 'source' }$name.*" );
 				
 				push( @found, $_ ) for grep { ! /~$/ } @globbed;
@@ -342,9 +399,12 @@ sub _fetch_view
 				next if @found == 0;
 				last if @found > 1;
 				
+# External a)
 				print STDERR "Opening file: $found[ 0 ]..";
+# External c)
 				open( $file, '<', $found[ 0 ] );
 				$view{ 'text' } .= $_ for <$file>;
+# External c)
 				close $file;
 				
 				$view{ 'evalme' } = ( $found[ 0 ] =~ m|\.pl$| ) ? 1 : 0;
@@ -354,11 +414,13 @@ sub _fetch_view
 			
 			if ( @found == 0 )
 			{
+# External d)
 				warn "No view found with name $name";
 			}
 			
 			if ( @found > 1 )
 			{
+# External d)
 				warn "More than one view found with the name $name in $view{ 'source' }";
 				return;
 			}
@@ -366,15 +428,18 @@ sub _fetch_view
 		elsif ( $renderer->( 'source_type' ) eq 'database' )
 		{
 			;
+# External e)
 			#$v = $renderer->_execsql( 'select * from view where view_name = ?', &_GETROW, $name );
 		}
 		
 # Caching and retrieving view.
 # NOTE  the _cache_skip call is an object call because caching might be off
 # for this render.
+# External f)
 		unless ( $renderer->_cache_skip( $name ) )
 		{
 			#print STDERR "Caching view..\n";
+# External g)
 			%view = _cache_store( $name, %view );
 		}
 	}
@@ -384,21 +449,25 @@ sub _fetch_view
 # off from the variables in this one.
 	if ( $view{ 'evalme' } )
 	{
+# External h)
 		$view{ 'text' } = $renderer->_eval_view( 'name' => $name, 'params' => $params, %view );
 	}
 	
 # This is to provide a line break between views for the Qoan controller report.
+# External a)
 	print STDERR "";
 	
 # Set view text to zero-len string if undefined (prevents later warnings).
 	unless ( defined $view{ 'text' } )
 	{
+# External d)
 		warn "View $name undefined";
 		$view{ 'text' } = '';
 	}
 	
 	if ( $insert )
 	{
+# External d)
 		$view{ 'text' } =~ s/{{\s*}}/$insert/ or warn 'No interpolation symbol for insertion text';
 	}
 	
@@ -410,6 +479,16 @@ sub _fetch_view
 }
 
 
+# Purpose:  Internal default "filter" for perl files.
+# Context:  Private, called by sub _fetch_view only.
+# Receives: 1) renderer ref
+#           .) view parameters
+# Returns:  eval'ed view
+# External: a) eval'ed code could potentially have any number of external calls.
+#           b) calls warn.
+# Note: the eval'ing of the view is in a separate sub to provide some
+#       security wrt variables in the eval context.
+#
 sub _eval_view
 {
 	return unless ( caller( 1 ) )[ 3 ] eq 'Qoan::View::_fetch_view';
@@ -423,13 +502,21 @@ sub _eval_view
 	%view = @_;
 	@params = split( /,/, $view{ 'params' } );
 	
+# External a)
 	$evaled = eval $view{ 'text' };
+# External b)
 	warn "error for EVAL $view{ 'name' }: $@" if $@;
 	
 	return $evaled;
 }
 
 
+# Purpose:  x
+# Context:  x
+# Receives: x
+# Returns:  x
+# External: x
+#
 sub _called_by_evaled_view
 {
 	my( @caller1, @caller2 );

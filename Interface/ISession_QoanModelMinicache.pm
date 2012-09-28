@@ -121,7 +121,7 @@ sub _cleanup
 	
 	%set = ( 'last_action' => $controller->env( 'action:name' ),
 		'last_action_manager' => $controller->env( 'action_manager:name' ),
-		'last_request' => $controller->env( 'uri:complete' ),
+		'last_request' => $controller->env( 'uri:virtual' ),
 		'last_request_at' => time() );
 	
 # Set session values in functional env.

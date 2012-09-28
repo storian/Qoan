@@ -17,7 +17,7 @@ my( $default_cfg_dir, %files );
 $default_cfg_dir .= 'configs/';
 
 
-sub load_config
+sub config_load
 {
 # WARN  This package-name check is likely not sufficient.
 	shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
@@ -47,7 +47,7 @@ sub load_config
 # the retrieve call must supply the same path.  If the load call received only
 # a file name, and found the config file in the default dir, the retrieve call
 # needs only the file name.
-sub retrieve_config
+sub config_retrieve
 {
 # WARN  This package-name check is likely not sufficient.
 	shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
@@ -59,7 +59,7 @@ sub retrieve_config
 	
 	return undef unless $file_name =~ m|^[\.\w/]+$|;
 	
-	load_config( $file_name ) if ! exists $files{ $file_name };
+	config_load( $file_name ) if ! exists $files{ $file_name };
 	
 	return $files{ $file_name }->{ $setting_name } if $setting_name;
 	return %{ $files{ $file_name } } if $file_name && ref( $files{ $file_name } ) eq 'HASH';
@@ -67,13 +67,13 @@ sub retrieve_config
 }
 
 
-sub loaded_files
+sub config_loaded
 {
 	return keys %files;
 }
 
 
-sub search_files
+sub config_search
 {
 # WARN  This package-name check is likely not sufficient.
 	shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
@@ -82,7 +82,7 @@ sub search_files
 	
 	$setting_name = shift();
 	
-	$found{ $_ } = retrieve_config( $_, $setting_name ) for keys %files;
+	$found{ $_ } = config_retrieve( $_, $setting_name ) for keys %files;
 	
 	return %found;
 }

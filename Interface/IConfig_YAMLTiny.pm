@@ -8,6 +8,11 @@ use strict;
 
 our $VERSION = '0.01';
 
+use Qoan::Interface ();
+
+our @ISA = qw| Qoan::Interface |;
+our @EXPORT = qw| load  retrieve  loaded  search |;
+
 
 my( $cfg_handler );
 my( $default_cfg_dir, %files );
@@ -36,9 +41,9 @@ sub _before_new
 }
 
 
-# Sub load_config returns a true or false value depending on
+# Sub load returns a true or false value depending on
 # whether the file to load exists/successfully loads.
-sub load_config
+sub load
 {
 	my( $controller );
 	
@@ -47,21 +52,26 @@ sub load_config
 # WARN  This package-name check is likely not sufficient.
 	#shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
 	
-	my( $path, $file_name, $settings );
+	my( $path, $file_name, $settings, $load_error );
+	$path = $file_name = '';
 	
 # $file_name might be an absolute path.  If it is just a file name,
 # include the default config path in the Minicache call.
 	$file_name = shift();
 	
-# Skip using Minicache if caller submitted a hash ref of config values.
+# Skip loading file if caller submitted a hash ref of config values.
 	unless ( $settings = shift() )
 	{
-		$path = [ $default_cfg_dir ] unless $file_name =~ m|/|;
-		$settings = { Qoan::Model::Minicache->new( 'source' => $file_name, 'paths' => $path )->get };
+		$path = $default_cfg_dir unless $file_name =~ m|/|;
+		$cfg_handler->read( $path . $file_name );
+		$load_error = $cfg_handler->errstr;
+		print STDERR 'error: ' . $load_error . "\n" if $load_error;
+		$settings = $cfg_handler->read( $path . $file_name )->[ 0 ];
 	}
 	
 # Note, can't overwrite previously loaded sets.
-	$files{ $file_name } = $settings if %{ $settings } && ! exists $files{ $file_name };
+	$files{ $file_name } = $settings
+		if ref( $settings ) eq 'HASH' && ! exists $files{ $file_name };
 	
 	return 1 if exists $files{ $file_name };
 	return 0;
@@ -72,19 +82,19 @@ sub load_config
 # the retrieve call must supply the same path.  If the load call received only
 # a file name, and found the config file in the default dir, the retrieve call
 # needs only the file name.
-sub retrieve_config
+sub retrieve
 {
 # WARN  This package-name check is likely not sufficient.
-	shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
+	#shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
+	my( $controller, $file_name, $setting_name );
 	
-	my( $file_name, $setting_name );
-	
+	$controller = shift();
 	$file_name = shift();
 	$setting_name = shift() || '';
 	
 	return undef unless $file_name =~ m|^[\.\w/]+$|;
 	
-	load_config( $file_name ) if ! exists $files{ $file_name };
+	load( $controller, $file_name ) if ! exists $files{ $file_name };
 	
 	return $files{ $file_name }->{ $setting_name } if $setting_name;
 	return %{ $files{ $file_name } } if $file_name && ref( $files{ $file_name } ) eq 'HASH';
@@ -92,22 +102,22 @@ sub retrieve_config
 }
 
 
-sub loaded_files
+sub loaded
 {
 	return keys %files;
 }
 
 
-sub search_files
+sub search
 {
 # WARN  This package-name check is likely not sufficient.
-	shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
+	#shift if ref( $_[ 0 ] ) || $_[ 0 ] =~ m|::|;
+	my( $controller, $setting_name, %found );
 	
-	my( $setting_name, %found );
-	
+	$controller = shift();
 	$setting_name = shift();
 	
-	$found{ $_ } = retrieve_config( $_, $setting_name ) for keys %files;
+	$found{ $_ } = retrieve( $controller, $_, $setting_name ) for keys %files;
 	
 	return %found;
 }

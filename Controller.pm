@@ -47,7 +47,11 @@ BEGIN
 	$qoan_base_dir = $qoan_base_file = ( caller( 0 ) )[ 1 ];
 	$qoan_base_dir =~ s|[^/]+$||;
 	
+# A Qoan application script will be at caller( 2 ).
+# If the app script is using a subclass of Qoan::Controller, that file name
+# will be at caller( 2 ), and the app script will be at caller( 3 ).
 	( $app_pkg, $app_script ) = ( caller( 2 ) )[ 0, 1 ];
+	( $app_pkg, $app_script ) = ( caller( 3 ) )[ 0, 1 ] if $app_script =~ m|\.pm$|;
 	$app_config = $app_dir = $app_script;
 	$app_dir =~ s|[^/]+$||;
 	#print STDERR "callerstuff: $app_pkg, $app_script, $app_dir, $app_config\n";
@@ -57,15 +61,16 @@ BEGIN
 	unshift( @INC, $app_dir, $app_dir . 'Qoan/Local', $qoan_base_dir . 'Local' );
 	
 # Default names for these two files.  These might be altered in import().
-	$qoan_base_config = 'qoan.default.config';
-	$app_config =~ s|\.\w+$|.config|;
+	#$qoan_base_config = 'qoan.default.config';
+	$qoan_base_config = 'qoan.default.yml';
+	$app_config =~ s|\.\w+$|.yml|;
 	
 	
 # BASE HANDLER SET-UP
 # The base handler is not intended for use during request handling, but rather only for
 # access to the base environment prior to request handling.  Basically, it provides an
 # interface to the base env that is consistent with that provided during request handling.
-# This allows the same routines to call env within and without a request context.
+# This allows the same routines to call env inside and outside a request context.
 	$handler_base = sub {
 		local *__ANON__ = 'base_closure';
 		my( $store, $k, $v, @keypath, $index, $loc, $i );
@@ -107,12 +112,6 @@ BEGIN
 				}
 				else
 				{
-					#if ( $v =~ m|\e| )
-					#{
-					#	$v =~ s|^\[ARRAY\]||;
-					#	$v = [ split( "\e", $v ) ];
-					#}
-					
 					$loc->{ $index } = $v;
 				}
 			}
@@ -133,8 +132,8 @@ BEGIN
 	
 # DEFAULT INTERNAL ENV SET-UP
 	%env_default = (
-		'action_stages'        => [ qw| identify  check  execute  cleanup | ],
-		'request_stages'       => [ qw| prestart  map  load  action  render  unload  response  cleanup  finished | ],
+		'action_stages'        => [ qw| check  execute  cleanup | ],
+		'request_stages'       => [ qw| route  load  action  render  unload  response  cleanup | ],
 		'component_load_order' => [ qw| request  session  user | ],
 # NOTE  that the config tool ALWAYS loads first, so does not appear in server_load_order.
 		'server_load_order'    => [ qw| logger  view | ],
@@ -142,6 +141,11 @@ BEGIN
 		'uri_source_header'    => 'request_uri',
 		'sessionid_variable'   => 'qoan_session',
 		'userid_variable'      => 'qoan_user',
+		'default_get_action_map' => {
+		    'default_action' => 'get',
+		    'default_view'   => 'index',
+		    'get'            => { 'route' => '/:view' }
+		},
 		'qoan_started'         => time(),
 		'closure_accessors'    => [ map { __PACKAGE__ . "::$_" } qw| action_map  clipboard  component  env  ok  publish  response | ],
 		'publish'              => { 
@@ -149,6 +153,7 @@ BEGIN
 				'clipboard' => 'clipboard',
 				'env' => 'env',
 				'response' => 'response',
+				'set_view' => 'set_view',
 			},
 			'view'           => {
 				'clipboard' => 'clipboard',
@@ -173,11 +178,14 @@ BEGIN
 				'store'     => 'users/'
 			},
 			'view'    => {
-				'interface' => 'Qoan::Interface::IView_QoanView',
 				'module' => 'Qoan::View',
+				'interface' => 'Qoan::Interface::IView_QoanView',
 				'store' => 'views/'
 			},
-			'config'  => { 'module' => 'Qoan::Config' },
+			'config'  => {  #'module' => 'Qoan::Config'
+				'module' => 'YAML::Tiny',
+				'interface' => 'Qoan::Interface::IConfig_YAMLTiny',
+			},
 			'logger'  => { 'module' => 'Qoan::Logger' },
 			#'request_manager' => { 'module' => 'Qoan::RequestManager' },
 		},
@@ -350,7 +358,7 @@ sub _action_execute
 # Returns:  x
 # External: x
 #
-sub _action_identify ($)
+sub _action_identify
 {
 	my( $q, %map, @order, $i, $req_uri );
 	my( $action, $route, @routes, @compared, $identified );
@@ -373,7 +381,7 @@ sub _action_identify ($)
 		{
 # NEXT THING HERE: @ROUTES ??
 			$route = $map{ $action }{ 'route' };  # just to make next line readable
-			$q->report(qq|Action:  \U$action| );
+			$q->report( qq|Action:  \U$action| );
 			
 			for ( ref( $route ) eq 'ARRAY' ? @{ $route } : $route )
 			{
@@ -419,8 +427,9 @@ sub _action_identify ($)
 	
 	$q->env( 'action:name' => $identified );
 	$q->env( 'action:route' => $route );
-	$q->report( "action identified: @{[ $identified || 'none' ]}" );
-	$q->report( "action route: @{[ $route || '' ]}" ) if $identified;
+	$q->report( ' ' );  # line break
+	$q->report( "action route match: @{[ $route || '' ]}" ) if $identified;
+	$q->report( "action identified:  @{[ $identified || 'none' ]}" );
 	
 	return 1 if $identified;
 	return 0;
@@ -450,11 +459,22 @@ sub action_map
 	$caller = ( caller( 1 ) )[ 3 ] || ( caller( 0 ) )[ 0 ];
 	
 # Action map can be changed:
-#	by the request processing routine;
+#	by the request route stage handler;
 #	by the application package before processing starts.
-	$can_edit = 1 if $caller eq 'Qoan::Controller::process_request';
-	$can_edit = 1 if ! $q->request_stage &&
-		$q->_allowed_caller( 'eq' => [ $q->app_package ], 'suppress_alerts' => 1 );
+	if ( $q->request_stage )
+	{
+		#$can_edit = 1 if $caller eq 'Qoan::Controller::process_request';
+		#$can_edit = 1 if $q->_allowed_caller( 'eq' => [ map { $_ . '::_process_request_stage_route' } $q->env( 'protected' ) ] );
+		for ( 'Qoan::Controller::process_request', map { $_ . '::_process_request_stage_route' } $q->env( 'protected' ) )
+		{
+			#$can_edit = 1 if $caller eq $_;
+			if ( $caller eq $_ ) { $can_edit = 1; last; }
+		}
+	}
+	else
+	{
+		$can_edit = 1 if $q->_allowed_caller( 'eq' => [ $q->app_package ], 'suppress_alerts' => 1 );
+	}
 	%map = @_ if $can_edit;
 	
 # Call to Main Closure.
@@ -597,6 +617,24 @@ sub app_package
 }
 
 
+#sub client_resource
+#{
+#	my( $q, $store, $type, $name, $view );
+#	
+#	$q = shift();
+#	
+#	$store = $q->env( 'client_resource_action:store' );
+#	$type  = $q->env( 'uri:resource_type' );
+#	$name  = $q->env( 'uri:resource_name' ) || $q->env( 'uri:alias:private' );
+#	
+#	$view = "$store/$name.$type";
+#	$q->env( 'render_view' => $view );
+#	
+#	return 1 if $q->env( 'render_view' ) eq $view;
+#	return 0;
+#}
+
+
 # Purpose:  For storage/retrieval of globs of data which do not belong anywhere else
 # Context:  Public.  Published to AM/view by default.
 # Receives: x
@@ -609,7 +647,8 @@ sub clipboard
 	
 	$q = shift();
 # Clipboard not allowed for class method call style (no use of base object).
-	return if $q eq __PACKAGE__;
+	#return if $q eq __PACKAGE__;
+	return unless ref( $q );
 	return unless @_;
 	
 	$q->report( qq|Writing data to clipboard under name "$_[ 0 ]".| ) if @_ > 1;
@@ -657,7 +696,8 @@ sub component
 	my( $load_obj, $unload_obj, $get_obj, $data_call, $settings_call );
 	
 	$q = shift();
-	$q = $handler_base if $q eq __PACKAGE__;
+	#$q = $handler_base if $q eq __PACKAGE__;
+	$q = $handler_base unless ref( $q );
 	
 # Note, $writing and $reading are used with settings and data only.
 	@params = @_;
@@ -792,7 +832,7 @@ sub component
 #           b) flattens env (no nested structure, no refs)
 #           c) calls main closure with single param (reading)
 #           ?) 
-#           d) calls retrieve_config routine
+#           d) calls config_retrieve routine
 #           e) calls to main closure to check for existing values
 #           f) calls main closure with multiple params (writing)
 #
@@ -802,7 +842,8 @@ sub env
 	
 	$q = shift();
 # Class method call style means use handler base object.
-	$q = $handler_base if $q eq __PACKAGE__;
+	#$q = $handler_base if $q eq __PACKAGE__;
+	$q = $handler_base unless ref( $q );
 	
 	$editable = 0;
 	$reading = '';
@@ -847,8 +888,8 @@ sub env
 		for ( @{ $cfg_load } )
 		{
 # External d)
-			#$q->( __PACKAGE__->retrieve_config( $_ ) ) if ! ref $_;
-			$q->( $q->retrieve_config( $_ ) ) if ! ref $_;
+			#$q->( __PACKAGE__->config_retrieve( $_ ) ) if ! ref $_;
+			$q->( $q->config_retrieve( $_ ) ) if ! ref $_;
 			$q->( %{ $_ } ) if ref( $_ ) eq 'HASH';
 		}
 		
@@ -889,7 +930,8 @@ sub _error_alert
 	my( $q, %aoe_email );
 	
 	$q = shift();
-	$q = $handler_base if $q eq __PACKAGE__;
+	#$q = $handler_base if $q eq __PACKAGE__;
+	$q = $handler_base unless ref( $q );
 	
 # External a)
 	if ( $q->env( 'alert_on_error:errorlog' ) )
@@ -1072,6 +1114,7 @@ sub import
 	
 # USE statement parameters.
 	%env_startup = @_;
+	#print STDERR "env startup: " . join( ' ', %env_startup ) . "\n";
 	
 # UNTAINT %env_startup !!
 # Main Config - file name only ???
@@ -1079,7 +1122,9 @@ sub import
 # Server - string or hash ref..
 	
 	$start_config{ $k } = $v while ( $k, $v ) = each %{ $env_default{ 'component' }->{ 'config' } };
+	#print STDERR "start cfg 1: " . join( ' ', %start_config ) . "\n";
 	$start_config{ $k } = $v while ( $k, $v ) = each %{ $env_startup{ 'component' }->{ 'config' } };
+	#print STDERR "start cfg 2: " . join( ' ', %start_config ) . "\n";
 	
 # Load Config tool.
 	if ( $start_config{ 'module' } eq 'Qoan::Config' )
@@ -1091,7 +1136,7 @@ sub import
 	else
 	{
 # External b)
-		$ok = $handler_base->_load_component( 'config', %start_config );
+		$ok = $handler_base->_load_component( 'config' => \%start_config );
 	}
 	
 # Config tool MUST load successfully.
@@ -1101,13 +1146,13 @@ sub import
 # Controller must load "env_startup" from a file.
 # Values in this file OVERWRITE ALL values passed in %env_startup.
 # Values in this file have the same priority as values passed in %env_startup (they override everything).
-# Note that retrieve_config is called here as a class method.
+# Note that config_retrieve is called here as a class method.
 # Note that config component settings are copied back into %env_startup; this
 # means that any config component settings in the use_file are not used.
 	if ( $start_config{ 'use_file' } )
 	{
 # External c)
-		%env_startup = __PACKAGE__->retrieve_config( $start_config{ 'use_file' } );
+		%env_startup = __PACKAGE__->config_retrieve( $start_config{ 'use_file' } );
 		$env_startup{ 'component' }->{ 'config' }{ $k } = $v while ( $k, $v ) = each %start_config;
 	}
 	
@@ -1119,14 +1164,15 @@ sub import
 	
 # Store startup parameters.
 # External d)
-	__PACKAGE__->load_config( 'controller_start' => \%env_startup );
+	__PACKAGE__->config_load( 'controller_start' => \%env_startup );
 	
 # Add config value sets to base env.
 	for ( \%env_default, $qoan_base_config, $app_config, \%env_startup )
 	{
 		next unless $_;  # Skip config file names if empty.
+		print STDERR "Loading cfg: $_\n";
 # External e)
-		%load_cfg = ref( $_ ) eq 'HASH' ? %{ $_ } : __PACKAGE__->retrieve_config( $_ );
+		%load_cfg = ref( $_ ) eq 'HASH' ? %{ $_ } : __PACKAGE__->config_retrieve( $_ );
 # External f)
 		%load_cfg = __PACKAGE__->_flatten( %load_cfg );
 # External g)
@@ -1235,8 +1281,9 @@ sub _load_component
 	
 # External a)
 	return unless $q->_allowed_caller(
-		'eq' => [ 'Qoan::Controller::import', 'Qoan::Controller::process_request' ],
-		'=~' => [ '^Qoan::Interface::\w+::\w+' ]  # Basically, allows interfaces to instantiate
+		#'eq' => [ 'Qoan::Controller::import', 'Qoan::Controller::process_request' ],
+		'eq' => [ 'Qoan::Controller::import', 'Qoan::Controller::process_request', map { $_ . '::_process_request_stage_load' } $q->env( 'protected' ) ],
+		'=~' => [ '^Qoan::Interface::\w+' ]  # Basically, allows interfaces to instantiate
 	    );
 	
 # Get component settings.
@@ -1245,7 +1292,8 @@ sub _load_component
 	
 # Require interface module.  Import interface routines.
 # External c)
-	$q->report( "Requiring component interface: $component{ 'interface' }.." );
+	#$q->report( "Requiring component interface: $component{ 'interface' }.." );
+	print STDERR "Requiring component interface: $component{ 'interface' }..";
 # External d)
 	return 0 unless $q->_require( $component{ 'interface' } );
 # External e)
@@ -1264,7 +1312,8 @@ sub _load_component
 # Skipping non-necessary component counts as a load SUCCESS.
 # It can also return contructor arguments as an ARRAY REF.
 # External c)
-	$q->report( "Running before-new handler.." );
+	#$q->report( "Running before-new handler.." );
+	print STDERR "Running before-new handler..";
 # External g)
 	return 1 unless $component{ 'init' } = $q->$before_new;
 	
@@ -1277,13 +1326,15 @@ sub _load_component
 	
 # Require component module.
 # External c)
-	$q->report( "Requiring component module: $component{ 'module' }.." );
+	#$q->report( "Requiring component module: $component{ 'module' }.." );
+	print STDERR "Requiring component module: $component{ 'module' }..";
 # External i)
 	return 0 unless $q->_require( $component{ 'module' } );
 	
 # Instantiate.  Uses returned argument array ref, or arguments saved to functional env.
 # External c)
-	$q->report( 'Instantiating component object..' );
+	#$q->report( 'Instantiating component object..' );
+	print STDERR 'Instantiating component object..';
 # External j)
 	$component{ 'init' } = [ $q->env( "component:$component:init" ) ]
 		unless ref( $component{ 'init' } ) eq 'ARRAY';
@@ -1293,18 +1344,21 @@ sub _load_component
 	
 # After_New handler must return a true value to proceed.
 # External c)
-	$q->report( "Running after-new handler for $object.." );
+	#$q->report( "Running after-new handler for $object.." );
+	print STDERR "Running after-new handler for $object..";
 # External l)
 	return 0 unless $q->$after_new( $object );
 	
 # Supply object to accessor.
 # External c)
-	$q->report( 'Submitting object to accessor..' );
+	#$q->report( 'Submitting object to accessor..' );
+	print STDERR 'Submitting object to accessor..';
 	$accessor = $component{ 'accessor_alias' } || $component;
 # External m)
 	$stored_ref = ref( $q->$accessor( $object ) );
 # External c)
-	$q->report( "Ref from stored object: $stored_ref" );
+	#$q->report( "Ref from stored object: $stored_ref" );
+	print STDERR "Ref from stored object: $stored_ref";
 	
 	return 1 if $stored_ref eq $component{ 'module' };
 	return 0;
@@ -1515,7 +1569,8 @@ sub _method
 	}
 	
 # External f)
-	$q->report( " => @{[ $method ? '' : 'not ' ]}allowed" );
+	#$q->report( " => @{[ $method ? '' : 'not ' ]}allowed" );
+	$q->report( ' => NOT ALLOWED' ) unless $method;
 	
 # External g)
 	return $q->$method( @params ) if $method;
@@ -1545,8 +1600,9 @@ sub new_request
 		'eq' => [ 'Qoan::Controller::process_request', $class->app_package ], '!~' => [ 'Qoan::' ] );
 	
 # Bootstrap accessor setting.
-# WARN  what if Controller.pm is subclassed?  how do we know which package has env in it?
-	$env{ 'closure_accessors' } = [ $class . '::env', $class . '::publish' ];
+# The bootstrap event is internal to Qoan::Controller; hence its accessors
+# are set with __PACKAGE__ and not $class.
+	$env{ 'closure_accessors' } = [ __PACKAGE__ . '::env', __PACKAGE__ . '::publish' ];
 	
 # BEGIN REQUEST CONTEXT CLOSURE.
 # Purpose:  access to request-specific env/other value stores
@@ -1605,7 +1661,10 @@ sub new_request
 			( $k, $v ) = @_[ $i, $i + 1 ];
 			
 # Compound index processing.
-			@keypath = split( ':', $k );
+# Recognized compound index segment separators are . and :, e.g.:
+#   action_manager:name
+#   action_manager.name
+			@keypath = split( /[:\.]/, $k );
 			$index = pop( @keypath );
 			$loc = $store;
 			for ( @keypath )
@@ -1660,8 +1719,10 @@ sub new_request
 # Call to env returns entire environment flattened.
 # Note that this defaults to current package's base env if $class is a subclass
 # and it provides none.
+# NOTE SEP 2012: $class->env falls back on __PACKAGE__->env if it supplies none.
+# Commenting out second call.
 	%set_env = $class->env;
-	%set_env = __PACKAGE__->env unless %set_env;
+	#%set_env = __PACKAGE__->env unless %set_env;
 # External b)
 	#$q->env( $class->env );  #|| __PACKAGE__->env );
 	$q->env( %set_env );
@@ -1671,7 +1732,7 @@ sub new_request
 	for ( @_ )
 	{
 # External c)
-		%load_cfg = ref( $_ ) eq 'HASH' ? %{ $_ } : $class->retrieve_config( $_ );
+		%load_cfg = ref( $_ ) eq 'HASH' ? %{ $_ } : $class->config_retrieve( $_ );
 # External b)
 		$q->env( $class->_flatten( %load_cfg ) );
 	}
@@ -1692,7 +1753,7 @@ sub new_request
 
 # Session-store set here because it is dependent on the tmp directory, which
 # must be set in a config file.
-#  SET THIS AFTER LOADING OF CONFIG FILES, not here!
+#  SET THIS AFTER LOADING OF CONFIG FILES, not here! - ?? Sep '12
 	$env{ 'component' }->{ 'session' }{ 'store' } = $env{ 'directory' }->{ 'tmp' } . 'sessions/';
 	
 # "Internal" env values, for the handler.
@@ -1755,25 +1816,15 @@ sub ok
 #
 sub process_request
 {
-	my( $q );
+	#my( $q );
+	my( $q, $stage, $handler, $stage_result, $stderr_redirected );
 	
-# LOAD/UNLOAD
-	my( @load_order, $component );
-# LOAD only
-	my( $loaded );
-# UNLOAD only
-	my( $unloaded );
-# MAP
-	my( $am_package, $am_origin, $am_route, $am_loaded, $using_internal_get_action );
-# ACTION
-	my( $action_stage, $stage_ok );
-	# also am_package, am_loaded, render_view, view_source
-# RENDERING
-	my( $render_view, $view_source, $view_exists, %renderer_params );
-# RESPONSE
-	my( $return_debug );
+	$stderr_redirected = 0;
 	
 	$q = shift();
+	
+# PREP STUFF FOR STAGE LOOP HERE (from current version of process_request)
+	# ??
 	
 # If $q is not an object, instantiate.
 # If it is, verify using request_stage that the handler hasn't been called yet.
@@ -1796,33 +1847,772 @@ sub process_request
 	unless ( $q->capturing )
 	{
 		$q->capture_output;
-		$q->env( 'stderr_redirected_in_request_handler' => 1 );
+		$stderr_redirected = 1;
 	}
 	
-# URI SHIT.  Kind of Argh.  Clean this up somehow.
-# Get request header.
-# Prepend with slash and remove query string if any.
-	my( $uri_virtual, $uri_app_root, $docroot, $alias, $virt_alias, $recd_private );
+	
+	$q->report( "\n****  ***  **  *\nREQUEST PROCESSING FOR $q\n" );
+	
+	for $stage ( $q->env( 'request_stages' ) )
+	{
+		$q->env( 'request_stage' => $stage );
+		$q->report( ":: \U$stage\E STAGE ::\n" );
+		
+		$handler = "_process_request_stage_$stage";
+		$q->ok( $stage_result = $q->$handler );
+		
+		$q->report( "\nstage status: @{[ $stage_result ? 'OK' : 'FAIL' ]}\n" );
+		
+# Abort entire request if ROUTE stage failed.
+		if ( $stage eq 'route' && ! $q->ok )
+		{
+			$q->report( 'Route stage failed, aborting.' );
+			return 0;
+		}
+		
+# For "client resource" requests (css, js, etc), load only the request component.
+		$q->env( 'component_load_order' => [ 'request' ] ) if $q->env( 'action:name' ) eq 'client_resource';
+		
+		$q->report( ":: end $stage stage ::\n\n" );
+	}
+	
+# Flag request as handled.
+	$q->env( 'request_stage' => 'finished' );
+	
+# Reset logging environment to normal if logging was redirected in this subroutine.
+	$q->capture_output if $stderr_redirected;
+	
+# Admin alerts for requests handled with errors.
+# Does not send alert if debug report was returned to client.
+	$q->_error_alert if $q->captured_errors && $q->env( 'alert_on_error' ) && ! $q->env( 'returned_http_debug_report' );
+	
+	return $q->ok;
+}
+
+#sub process_request_old
+#{
+#	my( $q );
+#	
+## LOAD/UNLOAD
+#	my( @load_order, $component );
+## LOAD only
+#	my( $loaded );
+## UNLOAD only
+#	my( $unloaded );
+## ROUTE
+#	my( $am_package, $am_origin, $am_route, $am_loaded, $using_internal_get_action );
+## ACTION
+#	my( $action_stage, $stage_ok );
+#	# also am_package, am_loaded, render_view, view_source
+## RENDERING
+#	my( $render_view, $view_source, $view_exists, %renderer_params );
+## RESPONSE
+#	my( $return_debug );
+#	
+#	$q = shift();
+#	
+## If $q is not an object, instantiate.
+## If it is, verify using request_stage that the handler hasn't been called yet.
+#	if ( ! ref $q )
+#	{
+#		$q = $q->new_request( @_ ) or die 'Could not instantiate controller!';
+#	}
+#	else
+#	{
+#		if ( $q->request_stage )
+#		{
+#			warn "Attempt to call a running process handler by @{[ ( caller( 1 ) )[ 3 ] ]}";
+#			return;
+#		}
+#		
+#		return unless $q->_allowed_caller( 'eq' => [ $q->app_package ] );
+#	}
+#	
+## Set up reporting.
+#	unless ( $q->capturing )
+#	{
+#		$q->capture_output;
+#		$q->env( 'stderr_redirected_in_request_handler' => 1 );
+#	}
+#	
+#	
+#	$q->report( "\n****  ***  **  *\nREQUEST PROCESSING FOR $q\n" );
+#	
+## ROUTE STAGE
+## Set request stage.
+#	$q->env( 'request_stage' => 'route' );
+#	
+#	$q->report( ":: ROUTE STAGE ::\n" );
+#	
+## URI SHIT.  Kind of Argh.  Clean this up somehow.
+## Get request header.
+## Prepend with slash and remove query string if any.
+#	my( $uri_virtual, $uri_app_root, $docroot, $alias, $virt_alias, $recd_private );
+#	$alias = $ARGV[ 0 ];
+#	$docroot = $q->env( 'sys_env:document_root' );
+#	$uri_virtual = $q->env( 'sys_env:' . $q->env( 'uri_source_header' ) );
+## If the received alias is *not* in the request URI, then the redirect_cfg file uses
+## different public and private aliases.
+#	$recd_private = ( $uri_virtual !~ m|$alias| ? 1 : 0 );
+#	$uri_virtual = "/$uri_virtual" unless $uri_virtual =~ m|^/|;
+#	$uri_virtual =~ s|\?.*$|| if $q->env( 'uri_source_header' ) eq 'request_uri';
+#	$uri_app_root = '';
+#	for ( split( '/', $uri_virtual ) )
+#	{
+#		next unless $_;
+#		last unless -e "$docroot$uri_app_root/$_";
+#		$uri_app_root .= "/$_";
+#		#print "uri: lead: $uri_app_root";
+#	}
+#	$uri_virtual =~ s|^$uri_app_root||;
+## "uri:alias:virtual" means that the app alias is in the URI's virtual part ONLY.
+## The default is to use a directory as the resource "mask" for the app, and
+## the dir name serves as the public app alias, hence not virtual.
+#	if ( ! $recd_private )
+#	{
+#		$virt_alias = ( $uri_app_root =~ m|$alias$| ? 0 : 1 );
+#		$uri_virtual = "/$alias" . $uri_virtual unless $q->env( 'uri:alias:virtual' );
+#	}
+#	else
+#	{
+#		$virt_alias = 0;
+#		$uri_virtual = '/' . ( $uri_app_root =~ m|(\w+)$| )[ 0 ] . $uri_virtual;
+#	}
+#	$q->env( 'uri:alias:received_private' => $recd_private );
+#	$q->env( 'uri:alias:virtual' => $virt_alias );
+#	$q->env( 'uri:alias:public' => ( $uri_virtual =~ m|^/?(\w+)| )[ 0 ] );  #unless $q->env( 'uri:alias:public' );
+#	$q->env( 'uri:alias:private' => $recd_private ? $alias : ( $uri_virtual =~ m|^/?(\w+)| )[ 0 ] );
+#	$q->env( 'uri:virtual' => $uri_virtual );
+#	$q->env( 'uri:app_root' => $uri_app_root );
+#	$q->env( 'uri:alias:argv' => $alias );
+#	
+#	
+## REQUEST PROCESSING, start report.
+#	$q->report( "Calling package:         @{[ $q->app_package ]}" );
+#	$q->report( "Calling file:            @{[ $q->app_script ]}" );
+#	$q->report( "Request:                 @{[ $q->env( 'uri:virtual' ) ]}" );
+#	$q->report( "Current status:          @{[ $q->ok ? 'ok' : 'FAIL' ]}\n" );
+#	
+## II.a  Determine action manager
+#	$q->report( ":: getting action manager ::\n" );
+#	
+#	$using_internal_get_action = 0;
+#	
+## A.
+## A.1
+## The calling package submitted an action map or has an action map fetch routine.
+#	if ( $q->action_map || $q->app_package->can( 'get_action_map' ) )
+#	{
+#		#$q->report( 'Action map extant/caller provides loader, setting AM to main caller' );
+#		$am_package = $q->app_package;
+#		$am_origin = 'main caller';
+#		$am_route = '';
+#		$am_loaded = 1;
+#	}
+## A.2
+## The action map is in the app's config file.
+#	elsif ( $q->env( 'action_map' ) )
+#	{
+#		$am_package = $q->app_package;
+#		$am_origin = 'config file';
+#		$am_route = '';
+#		$am_loaded = 1;
+#	}
+## B.
+## Caller does not provide action map, so it must come from an Action Manager.
+#	else
+#	{
+## B.1
+## Caller or config file supplied an Action Manager name.
+#		if ( $q->env( 'action_manager:name' ) )
+#		{
+#			#$q->report( 'Action manager name set directly by main caller or config file' );
+#			$am_package = $q->env( 'action_manager:name' );
+#			$am_origin = $q->env( 'action_manager:type' ) || 'set by main caller/config file';
+#			$am_loaded = $am_package eq $q->app_package ? 1 : 0;
+#		}
+## B.2
+## Caller did not provide an Action Manager name.
+#		else
+#		{
+## B.2.i
+## Self might BE an Action Manager if using a modified/overridden Controller.
+#			if ( $q->isa( 'Qoan::ActionManager' ) )
+#			{
+## WARN  :: in regex, works correctly?
+#				#$q->report( 'Controller is also Action Manager, setting AM to inherited package' );
+#				no strict 'refs';
+#				my @ctlr_isa = @{ ref( $q ) . '::ISA' };
+#				#use strict 'refs';
+#				$am_package = ( grep { /^Qoan::ActionManager::/ } @ctlr_isa )[ 0 ];
+#				$am_origin = 'superclass/inherited';
+#				$am_loaded = 1;
+#			}
+## B.2.ii
+## Determine Action Manager based on request URI.
+#			else
+#			{
+#				my( %routes );
+#				
+#				%routes = $q->env( 'action_manager_routes' );
+#				
+#				$q->report( 'Checking action manager routes in config' );
+#				$q->report( 'count of available routes: ' . keys( %routes ) );
+#				
+#				for $am_route ( sort keys %routes )
+#				{
+#					$q->report( "comparing path: $am_route" );
+#					next unless $q->env( 'uri:virtual' ) =~ m|$am_route|;
+#					$am_package = $routes{ $am_route };
+#					$am_origin = 'route selection';
+#					$am_loaded = 0;
+#					last;
+#				}
+#			}
+#			
+## B.2.iii
+## If action manager still not found, use default route.
+## WARN  SHOULD WE EVEN ALLOW A DEFAULT ACTION MANAGER ROUTE?
+#			if ( ! $am_package && $q->env( 'default_route' ) )
+#			{
+#				$q->report( 'No matching action manager routes, using config default route' );
+#				$am_package = ( $q->_route_compare( $q->env( 'default_route' ), $q->env( 'uri:virtual' ) ) )[ 0 ];
+#				$am_package = ucfirst( $am_package );
+#				$am_package =~ s|_(\w)|\U$1|g;
+#				$am_origin = 'default route in config' if $am_package;
+#				$am_loaded = 0;
+#			}
+#			
+## B.2.iv
+## If there is no action manager for a WRITE request, raise an error.
+## If there is no action manager for a GET request, and auto get is available.
+#			if ( ! $am_package )
+#			{
+#				( $q->is_post_request || ! $q->env( 'allow_default_get_action' ) )
+#					? warn( "No action manager found for WRITE request or for GET with auto get unavailable\n" )
+#					: $q->report( "No action manager found for GET request, auto get available.\n" );
+#			}
+#		}
+#		
+## B.2.v
+## Load action manager package if necessary.
+#		if ( $am_package && $am_package ne 'main' && ! $am_loaded )
+#		{
+#			$am_package = 'Qoan::ActionManager::' . $am_package if $am_origin ne 'caller';
+#			$am_loaded = $q->_require( $am_package );
+#		}
+#	}
+#	
+## B.2.vi
+## At this point, any Action Manager should be loaded.
+#	if ( $am_loaded )
+#	{
+#		$q->env( 'action_manager:name' => $am_package );
+#		$q->env( 'action_manager:type' => $am_origin );
+#		$q->env( 'action_manager:route' => $am_route ) if $am_route;
+#		
+#		if ( $q->env( 'action_map' ) )
+#		{
+#			$q->action_map( $q->env( 'action_map' ) );
+#		}
+#		else
+#		{
+#			my( $get_map_sub, $sub_defined );
+#			{
+#			 no strict 'refs';
+#			 $get_map_sub = \&{ $am_package . '::get_action_map' };
+#			 $sub_defined = defined( &{ $am_package . '::get_action_map' } );
+#			}
+#			
+#			$q->action_map( $get_map_sub->() ) if $sub_defined;
+#		}
+#	}
+## B.2.vii
+## If no Action Manager, and it's a GET request and default gets are allowed, set action
+## map to default get.
+#	elsif ( ! $q->is_post_request && $q->env( 'allow_default_get_action' ) )
+#	{
+#		#$q->action_map( 'default_action' => 'get',
+#		#		'default_view' => 'index',
+#		#		'get' => { 'route' => '/:view' } );
+#		$q->action_map( $q->env( 'default_get_action_map' ) );
+#		$using_internal_get_action = 1;
+#	}
+#	
+## Client resource request support.
+#	if ( $q->env( 'client_resource_action:enabled' ) )
+#	{
+#		$q->action_map( 'client_resource:route' => $q->env( 'client_resource_action:route' ) );
+#		
+#		#$am_package = 'client_resource';
+#		#$q->env( 'action_manager:name' => $am_package );
+#		#$q->env( 'action_manager:type' => $am_origin );
+#		$am_route = $q->action_map( 'client_resource:route' );
+#		$q->env( 'action_manager:route' => $am_route );
+#		
+## THIS NEEDS TO HAPPEN ONLY IF THE ACTION IS CLIENT RESOURCE FETCH.
+#		#my @stages = $q->env( 'request_stages' );
+#		#my @removed;
+#		#for ( @stages )
+#		#{
+#		#	push( @removed, $_ ) if $_ ne 'load' && $_ ne 'unload' && $_ ne 'cleanup';
+#		#}
+#		#$q->env( 'request_stages' => \@removed );
+#	}
+#	 
+## Starting request status depends on whether an action manager was found.
+#	unless ( $q->action_map )
+#	{
+#	 	$q->ok( 0 );
+#		warn 'Failed to locate action map.';
+#	}
+#	
+## Stage end report.
+#	$q->report( "public app alias:        @{[ $q->env( 'uri:alias:public' ) ]}" );
+#	$q->report( "private app alias:       @{[ $q->env( 'uri:alias:private' ) ]}" );
+#	$q->report( "action manager loaded?   @{[ $am_loaded ? 'yes' : 'NO' ]}" );
+#	$q->report( "action manager:          @{[ $am_loaded ? $am_package : 'none' ]}" );
+#	$q->report( "action manager alias:    @{[ $q->env( 'action_manager:alias' ) ]}" );
+#	$q->report( "action manager origin:   @{[ $am_loaded ? $am_origin : '' ]}" );
+#	$q->report( "action manager route:    @{[ $am_loaded ? $am_route : '' ]}" );
+#	$q->report( "action map exists?       @{[ $q->action_map ? 'yes' : 'no' ]}" );
+#	$q->report( "using default get map?   @{[ $using_internal_get_action ? 'yes' : 'no' ]}\n" );
+#	
+## Identify requested action.
+## NOTE THIS SHOULD RETURN TRUE/FALSE break on false?
+#	$q->_action_identify;
+#	$q->report( '' );  # line break
+## END of ROUTE STAGE.
+#	
+#	
+## I. Load components
+#	#$q->env( 'request_stage' => _load_stage() );
+#	$q->env( 'request_stage' => 'load' );
+#	
+#	$q->report( ":: LOAD STAGE ::\n" );
+#	@load_order = $q->env( 'component_load_order' );
+#	$q->report( "Components to load: @{[ join( ', ', @load_order ) ]}\n" );
+#	
+#	for $component ( @load_order )
+#	{
+#		next unless $q->ok;
+#		$q->report( "Loading component: $component" );
+#		$q->ok( $loaded = $q->_load_component( $component ) );
+#		$q->report( "Load $component returned: @{[ $loaded ? 'ok' : 'FAIL' ]} ($loaded)\n" );
+#	}
+#	
+## Return if something goes wrong during context component load.
+#	unless ( $q->ok )
+#	{
+#		warn "Load failed; aborting request handling";
+#		return;
+#	}
+#	
+#	$q->report( ":: end load stage ::\n" );
+#	
+#	
+## II. Execute action
+#	#$q->env( 'request_stage' => _action_stage() );
+#	$q->env( 'request_stage' => 'action' );
+#	
+#	$q->report( ":: ACTION STAGE ::\n" );
+#	
+## II.b  Execute action
+#	#$q->report( ":: executing action ::\n" );
+#	
+## Set component-accessible controller routines from env.
+#	$q->publish( $q->_flatten( $q->env( 'publish' ) ) );
+#	
+## START Action Manager component access block
+#	{
+## Setup of component data in Action Manager.
+## Note, lexically scoped to block just started.
+## Note, this is done if the Action Manager is loaded, which means NOT for the internal
+## default get action map.
+## WARN  The following use $q, and might have problems in a mod_perl environment,
+##	but the idea is that the wrapping "local" will cause the lexical reference to 
+##	evaporate once the block is exited.
+#	 no strict 'refs';
+#	 no warnings 'redefine';
+## Controller access alias for Action Manager.
+#	 local *{ $am_package . '::qoan' } = sub {
+#		local *__ANON__ = 'controller_access_closure_actionmanager';
+#		shift() if ref( $_[ 0 ] );
+#		return $q->_method( @_ ); } if $am_loaded;
+## Controller access alias for components.
+##	 my(  );
+##	 local *{ $_ . '::qoan' } = sub {
+##		local *__ANON__ = "controller_access_closure_$_";
+##		shift() if ref( $_[ 0 ] );
+##		return $q->_method( @_ ); } for @controller_access;
+#	 
+#	 use warnings 'redefine';
+#	 use strict 'refs';
+#	 
+## Test of exported $am_package variables, must return values.
+## NOTE  these tests are no good now, rewrite if using again.
+#	# if ( $am_loaded )
+#	# {
+#	#	&::controller_report( 'This is calling the controller functional ENV via MAIN.' );
+#	#	&::controller_report( " [from main] :: $_: $::request{ $_ }" ) for sort keys %::request;
+#	# }
+#	 
+#	 $stage_ok = $q->ok;
+#	 
+## The action at last!
+#	 for $action_stage ( $q->env( 'action_stages' ) )
+#	 {
+#		$q->report( "Opening action stage: \U$action_stage\E  with status: $stage_ok @{[ $stage_ok ? '' : '(skipping)' ]}" );
+#		next unless $stage_ok;
+#		
+#		$action_stage = "_action_$action_stage";
+#		
+## Runs Action Manager stage handler if extant.
+## (There might be no Action Manager if it is a GET request and default get action maps are allowed.)
+#		if ( $am_loaded && $am_package->can( $action_stage ) )
+#		{
+#			my $sub_ref;
+#			{
+#			 no strict 'refs';
+#			 $sub_ref = \&{ $am_package . '::' . $action_stage };
+#			}
+#			
+#			$stage_ok = $sub_ref->();
+#		}
+#		else
+#		{
+#			$stage_ok = $q->$action_stage;
+#		}
+#		
+#		$q->env( "action:$action_stage:ok" => $stage_ok );
+#		$q->ok( $stage_ok );
+#		$q->report( qq|stage returned: @{[ $stage_ok ? 'ok' : 'FAIL' ]} ($stage_ok)\n| );
+#	 }
+#	 
+## Action handling CHECK or EXECUTE might have set the view to render.
+#	 if ( $render_view = $q->env( 'render_view' ) )
+#	 {
+#	 	$view_source = 'action handling';
+#	 }
+#	 
+## If the action handling check and execute stages did not supply a view to render,
+## run an Action Manager selection routine, if available.
+#	 if ( ! $render_view && $am_loaded && $am_package->can( 'select_view_to_render' ) )
+#	 {
+#		$render_view = $am_package->select_view_to_render;
+#		$view_source = 'action manager select routine' if $render_view;
+#	 }
+#	 
+#	 $q->report( "\n:: end action stage ::\n" );
+#	}
+## END Action Manager component access block
+#	
+## Test of exported $am_package variables after scope-end (must return NO VALUES).
+#	#$q->report( 'Request in am?' );
+#	#$q->report( " :: $_: $main::request{ $_ }" ) for sort keys %main::request;
+#	
+#	
+## III. Render View
+#	#$q->env( 'request_stage' => _render_stage() );
+#	$q->env( 'request_stage' => 'render' );
+#	
+#	$q->report( ":: RENDER RESPONSE STAGE ::\n" );
+#	
+#	$q->report( ":: selecting view ::\n" );
+#	
+## Special case for internal get??
+## Ideally, the following if-block (as is) should handle this.
+#	#if ( ! $render_view && $using_internal_get_action )
+#	#{
+#	#	;
+#	#}
+#	
+## Client Resource (internal).
+#	if ( $q->env( 'action:name' ) eq 'client_resource' )
+#	{
+#		
+#		$render_view  = $q->env( 'client_resource_action:store' ) . ':';
+#		$render_view .= $q->env( 'uri:resource_name' ) || $q->env( 'uri:alias:private' ); # . '.';
+#		$render_view .= '_' . $q->env( 'uri:resource_type' );
+#		$view_source = 'client resource request';
+#	}
+#	
+## From action section of action map (action name).
+#	if ( ! $render_view && $q->env( 'action:name' ) )
+#	{
+#		$render_view = $q->action_map( $q->env( 'action:name' ) . ':view' );
+#		$view_source = 'supplied by action' if $render_view;
+#	}
+#	
+## Action name or last segment of URI if using internal get action.
+#	if ( ! $render_view && $q->env( 'action:route' ) )
+#	{
+#		my( @segments );
+#		@segments = map { $q->env( "uri$_" ) } ( $q->env( 'action:route' ) =~ m|/(:\w+)|g );
+#		
+#		$render_view = join( ':', @segments );
+#		$view_source = 'URI extraction' if $render_view;
+#	}
+#	
+## Action Map/Manager default.
+## Note the source says "action manager" but this is because an AM can only have
+## one action map.
+#	unless ( $render_view )
+#	{
+#		$render_view = $q->action_map( 'default_view' );
+#		$view_source = 'action manager default' if $render_view;
+#	}
+#	
+## Application default.
+#	unless ( $render_view )
+#	{
+#		$render_view = $q->env( 'default_view' );
+#		$view_source = 'application default' if $render_view;
+#	}
+#	
+#	$q->env( 'render_view' => $render_view ) unless $q->env( 'render_view' );
+#	$q->env( 'view_source' => $view_source );
+#	
+## View sources.
+#	unless ( $q->env( 'view_sources' ) )
+#	{
+#		my( @view_store, $i );
+#		
+## Note that the following line works regardless of whether view:store
+## is a scalar or an array.
+#		@view_store = $q->env( 'component:view:store' );
+#		
+#		for ( $i = $#view_store; $i >= 0; $i-- )
+#		{
+#			$view_store[ $i ] = $q->app_dir . $view_store[ $i ] unless $view_store[ $i ] =~ m|^/|;
+#			
+#			unless ( -d $view_store[ $i ] && -r $view_store[ $i ] )
+#			{
+#				warn( "View source is not a directory or not readable: $view_store[ $i ]" );
+#				splice( @view_store, $i, 1 );  # removes path
+#			}
+#		}
+#		
+#		push( @view_store, $q->qoan_base_dir . $q->env( 'qoan_view_store' ) ) unless $q->env( 'local_views_only' );
+#		
+#		$q->env( 'view_store' => [ @view_store ] );
+#	}
+#	
+## Check that starting view exists.  This is to retain control over HTTP requests
+## for resources that don't exist.
+#	for ( $q->env( 'view_store' ) )
+#	{
+#		my $exists;
+#		( $exists = $render_view ) =~ s|:|/|g;
+#		$q->report( "testing existence: $_$exists\.\*" );
+#		$view_exists = 1 if glob( "$_$exists.*" );
+#		last if $view_exists;
+#	}
+#	
+#	
+## Report on view found to be rendered.
+#	$q->report( "starting view:           @{[ $render_view || 'none' ]}" );
+#	$q->report( "view source:             @{[ $view_source || '' ]}" );
+#	$q->report( "starting view exists?    @{[ $view_exists ? 'yes' : 'no' ]}" );
+#	$q->report( "action map default view: @{[ $q->action_map( 'default_view' ) ]}\n" );
+#	$q->report( qq|view repositories:\n@{[ join( "\n", $q->env( 'view_store' ) ) ]}\n| );
+#	
+#	
+## View rendering.
+#	$q->report( ":: rendering view ::\n" );
+#	
+## Block to localize controller access alias for view component.
+## WARN  commented out because otherwise it disallows controller access during debug
+##	report rendering (see SENDING RESPONSE, below).
+#	#{
+#	no strict 'refs';
+#	local *{ 'Qoan::View' . '::qoan' } = sub {
+#		local *__ANON__ = 'controller_access_closure_view';
+#		shift() if ref( $_[ 0 ] );
+#		return $q->_method( @_ ); };
+#	use strict 'refs';
+#	
+#	if ( $render_view eq '[[DATA]]' )
+#	{
+#		$q->response( 'body' => $q->response( 'data' ) );
+#	}
+#	else  # rendering view from text
+#	{
+#		unless ( $view_exists )
+#		{
+#			$q->report( q|Rendering action map's default view in place of non-existent starting view.| );
+#			$render_view = $q->action_map( 'default_view' );
+#		}
+#		
+#		%renderer_params = $q->env( 'renderer_parameters' );
+#		$renderer_params{ 'view_start' } = $render_view;
+#		$renderer_params{ 'sources' } = [ $q->env( 'view_store' ) ];
+#		
+#		#my $rendered = $q->view_render( %renderer_params );
+#		#$rendered = Encode::encode( 'utf8', $rendered );
+#		#Encode::_utf8_on( $rendered );
+#		#$q->response( 'body' => $rendered );
+#		$q->response( 'body' => $q->view_render( %renderer_params ) );
+#		#}
+#		
+#		warn( 'Response is empty' ) unless $q->response( 'body' );
+#	}
+#	
+#	$q->report( "\n:: end render stage ::\n" );
+#	
+#	
+## IV. Unload
+#	#$q->env( 'request_stage'=> _unload_stage() );
+#	$q->env( 'request_stage' => 'unload' );
+#	
+#	$q->report( ":: UNLOAD STAGE ::\n" );
+#	
+#	@load_order = $q->env( 'component_unload_order' ) || reverse @load_order;
+#	
+#	for $component ( @load_order )
+#	{
+#		#next unless $q->ok;  # ??? should always unload ?
+#		$q->report( "Unloading component: $component" );
+#		#$q->ok( $unloaded = $q->_unload_component( $component ) );
+#		$unloaded = $q->_unload_component( $component );
+#		$q->report( "Unload $component returned: @{[ $unloaded ? 'ok' : 'FAIL' ]} ($unloaded)\n" );
+#	}
+#	
+#	$q->report( ":: end unload stage ::\n" );
+#	
+#	
+## V. SENDING RESPONSE
+#	#$q->env( 'request_stage'=> _respond_stage() );
+#	$q->env( 'request_stage' => 'response' );
+#
+## Set response to debug report if:
+##  - config is set to allow it, AND
+##  - session is set to allow it OR permissive setting in config is ON, AND
+##  - there is NO rendered response OR a debug request parameter is set.
+## NOTE that this is (Dec 2011) the ONLY place where the controller refers to context
+## component values AT ALL, when deciding to send the debug report to the client.
+##  values: session:admin_debug_http, request:debug = http
+## Note, as components are unloaded, calls are made to env component member stores.
+#	if ( $q->env( 'http_debug:allow' ) )
+#	{
+#		my( $debug_param, $debug_value );
+#		
+#		$debug_param = 'request:' . $q->env( 'http_debug:request_param' );
+#		$debug_value = $q->env( 'http_debug:request_value' );
+#		
+#		$q->report( 'Checking whether to send debug report to client..' );
+#		$return_debug = 0;
+#		$return_debug = 1 if $q->env( 'session:permission:http_debug' );
+#		$return_debug = 1 if $q->env( 'http_debug:allow_public' );
+#		#$return_debug &&= ( $q->env( $debug_param ) eq $debug_value ) if $q->env( $debug_param );
+#		$q->report( $return_debug );
+#		
+#		if ( $return_debug )
+#		{
+#			$q->report( 'Returning debug report to client.' );
+#			
+#			%renderer_params = $q->env( 'renderer_parameters' );
+#			$renderer_params{ 'view_start' } = $q->env( 'http_debug:view' );
+#			$renderer_params{ 'sources' } = [ $q->env( 'view_store' ) ];
+#			$renderer_params{ 'run_report' } = $q->captured_output;
+#			$renderer_params{ 'errors' } = [ $q->captured_errors ];
+#			
+#			$q->response( 'body' => $q->view_render( %renderer_params ) );
+#			$q->response( 'header:content-type' => 'text/html' );
+#		}
+#	}
+#	
+## Send response, unless caller has indicated it will do it.
+#	unless ( $q->env( 'delay_response' ) )
+#	{
+#		$q->env( 'response_sent' => $q->send_response );
+#	}
+#	
+## VI. COMPLETED  Flag request as handled.
+#	#$q->env( 'request_stage' => _finished() );
+#	$q->env( 'request_stage' => 'finished' );
+#	
+## Reset logging environment to normal if logging was redirected in this subroutine.
+#	$q->capture_output if $q->env( 'stderr_redirected_in_request_handler' );
+#	
+## Admin alerts for requests handled with errors.
+## Does not send alert if debug report was returned to client.
+#	$q->_error_alert if $q->captured_errors && $q->env( 'alert_on_error' ) && ! $return_debug;
+#	#if ( $q->captured_errors && $q->env( 'alert_on_error' ) && ! $return_debug )
+#	#{
+#	#	if ( $q->env( 'alert_on_error:errorlog' ) )
+#	#	{
+#	#		$q->flush_captured;
+#	#	}
+#	#	
+#	#	if ( $q->env( 'alert_on_error:email' ) )
+#	#	{
+#	#		my( $sent, %email_parts );
+#	#		
+#	#		$email_parts{ 'body' } = $q->captured_output;
+#	#		$email_parts{ 'from' } = $q->env( 'alert_on_error:email:from' );
+#	#		$email_parts{ 'to' } = $q->env( 'alert_on_error:email:to' );
+#	#		$email_parts{ 'subject' } = $q->env( 'alert_on_error:email:subject' );
+#	#		
+#	#		$q->load_helper( 'Qoan::Helper::' . $q->env( 'alert_on_error:email:helper' ) );
+#	#		$sent = $q->_send_email( %email_parts );
+#	#		
+#	#		warn( "Error alert email failed to send." ) unless $sent;
+#	#	}
+#	#}
+#	
+#	return $q->ok;
+#}
+
+
+sub _process_request_stage_route
+{
+	my( $q );
+# Request URI operations.
+	my( $alias, $docroot, $uri_virtual, $recd_private, $uri_app_root, $virt_alias );
+# Determining Action Manager/Map.
+	my( $am_package, $am_origin, $am_route, $am_loaded, $using_internal_get_action );
+# Identifying action.
+	my( %map, @order, $i ); #, $req_uri );
+	my( $action, $route, @routes, @compared, $identified );
+	my( @symbols );
+	
+	$q = shift();
+	
+# REQUEST PROCESSING, start report.
+	$q->report( "Calling package:         @{[ $q->app_package ]}" );
+	$q->report( "Calling file:            @{[ $q->app_script ]}" );
+	$q->report( "Current status:          @{[ $q->ok ? 'ok' : 'FAIL' ]}\n" );
+ 	
+# App alias.
 	$alias = $ARGV[ 0 ];
 	$docroot = $q->env( 'sys_env:document_root' );
+	
+# Request header.
+# Prepend with slash and remove query string if any.
 	$uri_virtual = $q->env( 'sys_env:' . $q->env( 'uri_source_header' ) );
-# If the received alias is *not* in the request URI, then the redirect_cfg file uses
-# different public and private aliases.
+	
+# If the received app alias is *not* in the request URI, then the app's redirect_cfg
+# file uses different public and private aliases.
 	$recd_private = ( $uri_virtual !~ m|$alias| ? 1 : 0 );
+	
 	$uri_virtual = "/$uri_virtual" unless $uri_virtual =~ m|^/|;
 	$uri_virtual =~ s|\?.*$|| if $q->env( 'uri_source_header' ) eq 'request_uri';
+	
 	$uri_app_root = '';
+	
 	for ( split( '/', $uri_virtual ) )
 	{
 		next unless $_;
 		last unless -e "$docroot$uri_app_root/$_";
 		$uri_app_root .= "/$_";
-		print "uri: lead: $uri_app_root";
 	}
+	
 	$uri_virtual =~ s|^$uri_app_root||;
+	
 # "uri:alias:virtual" means that the app alias is in the URI's virtual part ONLY.
-# The default is to use a directory as the resource "mask" for the app, and
-# the dir name serves as the public app alias, hence not virtual.
+# The default is to use a directory as the resource "mask" for the app, and the
+# dir name serves as the public app alias, hence is not virtual.
 	if ( ! $recd_private )
 	{
 		$virt_alias = ( $uri_app_root =~ m|$alias$| ? 0 : 1 );
@@ -1833,37 +2623,47 @@ sub process_request
 		$virt_alias = 0;
 		$uri_virtual = '/' . ( $uri_app_root =~ m|(\w+)$| )[ 0 ] . $uri_virtual;
 	}
-	$q->env( 'uri:alias:received_private' => "$recd_private" );
-	$q->env( 'uri:alias:virtual' => "$virt_alias" );
-	$q->env( 'uri:alias:public' => ( $uri_virtual =~ m|^/?(\w+)| )[ 0 ] );  #unless $q->env( 'uri:alias:public' );
-	$q->env( 'uri:alias:private' => $recd_private ? $alias : ( $uri_virtual =~ m|^/?(\w+)| )[ 0 ] );
+	
+# Set the path values to env.
 	$q->env( 'uri:virtual' => $uri_virtual );
-	$q->env( 'uri:app_root' => $uri_app_root );
 	$q->env( 'uri:alias:argv' => $alias );
+	$q->env( 'uri:alias:received_private' => $recd_private );
+	$q->env( 'uri:alias:public' => ( $uri_virtual =~ m|^/?(\w+)| )[ 0 ] );
+	$q->env( 'uri:alias:private' => $recd_private ? $alias : ( $uri_virtual =~ m|^/?(\w+)| )[ 0 ] );
+	$q->env( 'uri:alias:virtual' => $virt_alias );
+	$q->env( 'uri:app_root' => $uri_app_root );
+	
+# Reporting URI OPERATIONS.
+	$q->report( ":: uri operations ::\n" );
+	$q->report( "request URI:             @{[ $q->env( 'uri:virtual' ) ]}" );
+	$q->report( "received app alias:      $alias" );
+	$q->report( "public app alias:        @{[ $q->env( 'uri:alias:public' ) ]}" );
+	$q->report( "recd alias is private:   @{[ $recd_private ? 'yes' : 'no' ]}" );
+	$q->report( "alias is virtual:        @{[ $virt_alias ? 'yes' : 'no' ]}" );
+	$q->report( "application root:        $uri_app_root\n" );
 	
 	
-# REQUEST PROCESSING, start report.
-	$q->report( "\n****  ***  **  *\nREQUEST PROCESSING FOR $q" );
-	$q->report( "Calling package:         @{[ $q->app_package ]}" );
-	$q->report( "Calling file:            @{[ $q->app_script ]}" );
-	$q->report( "Request:                 @{[ $q->env( 'uri:virtual' ) ]}" );
-	$q->report( "Current status:          @{[ $q->ok ? 'ok' : 'FAIL' ]}\n" );
-	
-# Set request stage.
-	$q->env( 'request_stage' => 'map' );
-	
-# II.a  Determine action manager
-	$q->report( ":: getting action manager ::\n" );
-	
+# Determine action manager.
+	#$q->report( ":: getting action manager ::\n" );
 	$using_internal_get_action = 0;
 	
 # A.
+# A.1
 # The calling package submitted an action map or has an action map fetch routine.
 	if ( $q->action_map || $q->app_package->can( 'get_action_map' ) )
 	{
 		#$q->report( 'Action map extant/caller provides loader, setting AM to main caller' );
 		$am_package = $q->app_package;
 		$am_origin = 'main caller';
+		$am_route = '';
+		$am_loaded = 1;
+	}
+# A.2
+# The action map is in the app's config file.
+	elsif ( $q->env( 'action_map' ) )
+	{
+		$am_package = $q->app_package;
+		$am_origin = 'config file';
 		$am_route = '';
 		$am_loaded = 1;
 	}
@@ -1951,7 +2751,7 @@ sub process_request
 			$am_loaded = $q->_require( $am_package );
 		}
 	}
-		
+	
 # B.2.vi
 # At this point, any Action Manager should be loaded.
 	if ( $am_loaded )
@@ -1960,122 +2760,201 @@ sub process_request
 		$q->env( 'action_manager:type' => $am_origin );
 		$q->env( 'action_manager:route' => $am_route ) if $am_route;
 		
-		my( $get_map_sub, $sub_defined );
+		if ( $q->env( 'action_map' ) )
 		{
+			$q->action_map( $q->env( 'action_map' ) );
+		}
+		else
+		{
+			my( $get_map_sub, $sub_defined );
+			{
 			 no strict 'refs';
 			 $get_map_sub = \&{ $am_package . '::get_action_map' };
 			 $sub_defined = defined( &{ $am_package . '::get_action_map' } );
+			}
+			
+			$q->action_map( $get_map_sub->() ) if $sub_defined;
 		}
-		
-		$q->action_map( $get_map_sub->() ) if $sub_defined;
 	}
 # B.2.vii
 # If no Action Manager, and it's a GET request and default gets are allowed, set action
 # map to default get.
 	elsif ( ! $q->is_post_request && $q->env( 'allow_default_get_action' ) )
 	{
-		$q->action_map( 'default_action' => 'get',
-				'default_view' => 'index',
-				'get' => { 'route' => '/:view' } );
+		#$q->action_map( 'default_action' => 'get',
+		#		'default_view' => 'index',
+		#		'get' => { 'route' => '/:view' } );
+		$q->action_map( $q->env( 'default_get_action_map' ) );
 		$using_internal_get_action = 1;
 	}
-	 
-# Starting request status depends on whether an action manager was found.
-	unless ( $q->action_map )
+	
+# Client resource request support.  The route setting is the only one needed.
+# Set here, before following action map check.
+	if ( $q->env( 'client_resource_action:enabled' ) )
 	{
-	 	$q->ok( 0 );
+		$q->action_map( 'client_resource:route' => $q->env( 'client_resource_action:route' ) );
+	}
+	 
+# Return fail value if action map is not found.
+	unless ( %map = $q->action_map )
+	{
 		warn 'Failed to locate action map.';
+		return 0;
 	}
 	
-	$q->report( "public app alias:        @{[ $q->env( 'uri:alias:public' ) ]}" );
+# Reporting AM/Map load.
+	$q->report( ":: action manager/map load ::\n" );
 	$q->report( "action manager loaded?   @{[ $am_loaded ? 'yes' : 'NO' ]}" );
 	$q->report( "action manager:          @{[ $am_loaded ? $am_package : 'none' ]}" );
-	$q->report( "action manager alias:    @{[ $q->env( 'action_manager:alias' ) ]}" );
-	$q->report( "action manager origin:   @{[ $am_loaded ? $am_origin : '' ]}" );
-	$q->report( "action manager route:    @{[ $am_loaded ? $am_route : '' ]}" );
+	$q->report( "action manager alias:    @{[ $q->env( 'action_manager:alias' ) || 'none' ]}" );
+	$q->report( "action manager origin:   @{[ $am_origin || 'none' ]}" );
+	$q->report( "action manager route:    @{[ $am_route || 'none' ]}" );
 	$q->report( "action map exists?       @{[ $q->action_map ? 'yes' : 'no' ]}" );
 	$q->report( "using default get map?   @{[ $using_internal_get_action ? 'yes' : 'no' ]}\n" );
 	
 	
-# I. Load components
-	#$q->env( 'request_stage' => _load_stage() );
-	$q->env( 'request_stage' => 'load' );
+# Identify Action.
+	$i = 0;
 	
-	$q->report( ":: LOAD STAGE ::\n" );
+	$q->report( ":: action identification ::\n" );
+	$q->report( "request URI: $uri_virtual" );
+	
+# Note that if there is no "order" member in the checks, a meaningless order is substituted
+# (prevents warning).  Not sure at this time (Feb 2012) if that's the right solution.
+	@order = sort { ( $map{ $a }{ 'order' } || ++$i ) <=> ( $map{ $b }{ 'order' } || ++$i ) }
+		grep { ref( $map{ $_ } ) eq 'HASH' } keys %map;
+	
+# Check URI against action map routes.	
+	for $action ( @order )
+	{
+# NEXT THING HERE: @ROUTES ??
+		$route = $map{ $action }{ 'route' };  # just to make next line readable
+		$q->report( qq|Action:  \U$action| );
+		
+		for ( ref( $route ) eq 'ARRAY' ? @{ $route } : $route )
+		{
+			$q->report( " route:  $_" );
+			
+			if ( @compared = $q->_route_compare( $_, $uri_virtual ) )
+			{
+				$identified = $action;
+				$route = $_;
+			}
+			
+			last if $identified;
+		}
+		
+		last if $identified;
+	}
+	
+# If no route matched, check for default map action.
+	if ( ! $identified && exists $map{ 'default_action' } )
+	{
+		$identified = $map{ 'default_action' };
+	}
+	
+# Try grabbing action from URI if none found with action map.
+	if ( ! $identified && ( $route = $q->env( 'default_route' ) ) )
+	{
+		$identified = $compared[ -1 ] if @compared = $q->_route_compare( $route, $uri_virtual );
+	}
+	
+# If URI contains symbols, parse and store in env.
+# Note that an ":action" symbol in a route can override an identified action name.
+	if ( $identified && $route =~ m|/?:\w+/?| )
+	{
+		@symbols = ( $route =~ m|:(\w+)|g );
+		
+		for ( 0 .. $#compared )
+		{
+			$q->env( "uri:$symbols[ $_ ]" => $compared[ $_ ] );
+			$identified = $compared[ $_ ] if $symbols[ $_ ] eq 'action';
+		}
+	}
+	
+	$q->env( 'action:name' => $identified );
+	$q->env( 'action:route' => $route );
+	
+	$q->report( ' ' );  # line break
+	$q->report( "action route match:      @{[ $route || '' ]}" ) if $identified;
+	$q->report( "action identified:       @{[ $identified || 'none' ]}" );
+	
+	return 1 if $identified;
+	return 0;
+	
+}
+
+
+sub _process_request_stage_load
+{
+	my( $q, @load_order, $component, $loaded );
+	
+	$q = shift();
+	$loaded = 1;
+	
 	@load_order = $q->env( 'component_load_order' );
 	$q->report( "Components to load: @load_order\n" );
 	
 	for $component ( @load_order )
 	{
-		next unless $q->ok;
+		next unless $loaded;
 		$q->report( "Loading component: $component" );
-		$q->ok( $loaded = $q->_load_component( $component ) );
+		$loaded = $q->_load_component( $component );
 		$q->report( "Load $component returned: @{[ $loaded ? 'ok' : 'FAIL' ]} ($loaded)\n" );
 	}
 	
-# Return if something goes wrong during context component load.
-	unless ( $q->ok )
-	{
-		warn "Load failed; aborting request handling";
-		return;
-	}
+	return 1 if $loaded;
+	return 0;
+}
+
+
+sub _process_request_stage_action
+{
+	my( $q );
+	my( $am_package, $am_loaded );
+	my( $stage_ok, $action_stage, $action_ok );
+	my( $render_view, $view_source );
 	
-	$q->report( ":: end load stage ::\n" );
+	$q = shift();
 	
-	
-# II. Execute action
-	#$q->env( 'request_stage' => _action_stage() );
-	$q->env( 'request_stage' => 'action' );
-	
-	$q->report( ":: ACTION STAGE ::\n" );
-	
-# II.b  Execute action
-	#$q->report( ":: executing action ::\n" );
+	$am_package = $q->env( 'action_manager:name' );
+	$am_loaded = defined( $am_package ) ? 1 : 0;
 	
 # Set component-accessible controller routines from env.
-	$q->publish( $q->_flatten( $q->env( 'publish' ) ) );
+	$q->publish( $q->_flatten( $q->env( 'publish' ) ) ) unless $q->env( 'action:name' ) eq 'client_resource';
 	
-# START Action Manager component access block
-	{
-# Setup of component data in Action Manager.
-# Note, lexically scoped to block just started.
-# Note, this is done if the Action Manager is loaded, which means NOT for the internal
-# default get action map.
+# Set up controller accessor for Action Manager code.
+# Note, this is done if the Action Manager is loaded, which means NOT for
+# the internal default get action map.
 # WARN  The following use $q, and might have problems in a mod_perl environment,
 #	but the idea is that the wrapping "local" will cause the lexical reference to 
 #	evaporate once the block is exited.
-	 no strict 'refs';
-	 no warnings 'redefine';
-# Controller access alias for Action Manager.
-	 local *{ $am_package . '::qoan' } = sub {
+	no strict 'refs';
+	no warnings 'redefine';
+	
+	local *{ $am_package . '::qoan' } = sub {
 		local *__ANON__ = 'controller_access_closure_actionmanager';
 		shift() if ref( $_[ 0 ] );
 		return $q->_method( @_ ); } if $am_loaded;
-# Controller access alias for components.
-#	 my(  );
-#	 local *{ $_ . '::qoan' } = sub {
-#		local *__ANON__ = "controller_access_closure_$_";
-#		shift() if ref( $_[ 0 ] );
-#		return $q->_method( @_ ); } for @controller_access;
-	 
-	 use warnings 'redefine';
-	 use strict 'refs';
-	 
-# Test of exported $am_package variables, must return values.
+	
+	use warnings 'redefine';
+	use strict 'refs';
+	
+# TEST of exported $am_package variables, must return values.
 # NOTE  these tests are no good now, rewrite if using again.
 	# if ( $am_loaded )
 	# {
 	#	&::controller_report( 'This is calling the controller functional ENV via MAIN.' );
 	#	&::controller_report( " [from main] :: $_: $::request{ $_ }" ) for sort keys %::request;
 	# }
-	 
-	 $stage_ok = $q->ok;
-	 
+	
+	$action_ok = 1; #$q->ok;
+	
 # The action at last!
-	 for $action_stage ( $q->env( 'action_stages' ) )
-	 {
-		$q->report( "Opening action stage: \U$action_stage\E  with status: $stage_ok @{[ $stage_ok ? '' : '(skipping)' ]}" );
-		next unless $stage_ok;
+	for $action_stage ( $q->env( 'action_stages' ) )
+	{
+		$q->report( "Opening action stage: \U$action_stage\E  with status: $action_ok @{[ $action_ok ? '' : '(skipping)' ]}" );
+		next unless $action_ok;
 		
 		$action_stage = "_action_$action_stage";
 		
@@ -2097,40 +2976,48 @@ sub process_request
 		}
 		
 		$q->env( "action:$action_stage:ok" => $stage_ok );
-		$q->ok( $stage_ok );
+		$action_ok &&= $stage_ok;
+		#$q->ok( $stage_ok );
 		$q->report( qq|stage returned: @{[ $stage_ok ? 'ok' : 'FAIL' ]} ($stage_ok)\n| );
-	 }
-	 
+	}
+	
 # Action handling CHECK or EXECUTE might have set the view to render.
-	 if ( $render_view = $q->env( 'render_view' ) )
-	 {
-	 	$view_source = 'action handling';
-	 }
-	 
+	if ( $render_view = $q->env( 'render_view' ) )
+	{
+		$q->env( 'view_source' => 'action_handling' );
+	}
+	
 # If the action handling check and execute stages did not supply a view to render,
 # run an Action Manager selection routine, if available.
-	 if ( ! $render_view && $am_loaded && $am_package->can( 'select_view_to_render' ) )
-	 {
-		$render_view = $am_package->select_view_to_render;
-		$view_source = 'action manager select routine' if $render_view;
-	 }
-	 
-	 $q->report( "\n:: end action stage ::\n" );
+# (Runs here because the handler code might need access to the Controller, which is
+# set up above.)
+	if ( ! $render_view && $am_loaded &&
+		$am_package->can( 'select_view_to_render' ) &&
+		( $render_view = $am_package->select_view_to_render ) )
+	{
+		$q->env( 'view_source' => 'action manager select routine' );
+		$q->env( 'render_view' => $render_view );
 	}
-# END Action Manager component access block
 	
-# Test of exported $am_package variables after scope-end (must return NO VALUES).
+# TEST of exported $am_package variables after scope-end (must return NO VALUES).
 	#$q->report( 'Request in am?' );
 	#$q->report( " :: $_: $main::request{ $_ }" ) for sort keys %main::request;
 	
+	return 1 if $action_ok;
+	return 0;
+}
+
+
+sub _process_request_stage_render
+{
+	my( $q );
+	my( $render_view, $view_source, $view_exists, %renderer_params );
 	
-# III. Render View
-	#$q->env( 'request_stage' => _render_stage() );
-	$q->env( 'request_stage' => 'render' );
-	
-	$q->report( ":: RENDER RESPONSE STAGE ::\n" );
+	$q = shift();
 	
 	$q->report( ":: selecting view ::\n" );
+	
+	$render_view = $q->env( 'render_view' );
 	
 # Special case for internal get??
 # Ideally, the following if-block (as is) should handle this.
@@ -2138,6 +3025,16 @@ sub process_request
 	#{
 	#	;
 	#}
+	
+# Client Resource (internal).
+	if ( $q->env( 'action:name' ) eq 'client_resource' )
+	{
+		
+		$render_view  = $q->env( 'client_resource_action:store' ) . ':';
+		$render_view .= $q->env( 'uri:resource_name' ) || $q->env( 'uri:alias:private' ); # . '.';
+		$render_view .= '_' . $q->env( 'uri:resource_type' );
+		$view_source = 'client resource request';
+	}
 	
 # From action section of action map (action name).
 	if ( ! $render_view && $q->env( 'action:name' ) )
@@ -2213,7 +3110,7 @@ sub process_request
 	
 # Report on view found to be rendered.
 	$q->report( "starting view:           @{[ $render_view || 'none' ]}" );
-	$q->report( "view source:             @{[ $view_source || '' ]}" );
+	$q->report( "view source:             @{[ $q->env( 'view_source' ) || '' ]}" );
 	$q->report( "starting view exists?    @{[ $view_exists ? 'yes' : 'no' ]}" );
 	$q->report( "action map default view: @{[ $q->action_map( 'default_view' ) ]}\n" );
 	$q->report( qq|view repositories:\n@{[ join( "\n", $q->env( 'view_store' ) ) ]}\n| );
@@ -2222,16 +3119,18 @@ sub process_request
 # View rendering.
 	$q->report( ":: rendering view ::\n" );
 	
-# Block to localize controller access alias for view component.
-# WARN  commented out because otherwise it disallows controller access during debug
-#	report rendering (see SENDING RESPONSE, below).
-	#{
+# Localize controller access alias for view component.
 	no strict 'refs';
+	no warnings 'redefine';
+	
 	local *{ 'Qoan::View' . '::qoan' } = sub {
 		local *__ANON__ = 'controller_access_closure_view';
 		shift() if ref( $_[ 0 ] );
 		return $q->_method( @_ ); };
+	
+	use warnings 'redefine';
 	use strict 'refs';
+	
 	
 	if ( $render_view eq '[[DATA]]' )
 	{
@@ -2259,33 +3158,41 @@ sub process_request
 		warn( 'Response is empty' ) unless $q->response( 'body' );
 	}
 	
-	$q->report( "\n:: end render stage ::\n" );
+	return 1 if $q->response( 'body' );
+	return 0;
+}
+
+
+sub _process_request_stage_unload
+{
+	my( $q, @unload_order, $component, $unloaded, $unload_progress );
 	
+	$q = shift();
+	$unload_progress = 1;
 	
-# IV. Unload
-	#$q->env( 'request_stage'=> _unload_stage() );
-	$q->env( 'request_stage' => 'unload' );
+	@unload_order = $q->env( 'component_unload_order' ) ||
+		reverse $q->env( 'component_load_order' );
 	
-	$q->report( ":: UNLOAD STAGE ::\n" );
-	
-	@load_order = $q->env( 'component_unload_order' ) || reverse @load_order;
-	
-	for $component ( @load_order )
+	for $component ( @unload_order )
 	{
-		#next unless $q->ok;  # ??? should always unload ?
 		$q->report( "Unloading component: $component" );
-		#$q->ok( $unloaded = $q->_unload_component( $component ) );
 		$unloaded = $q->_unload_component( $component );
 		$q->report( "Unload $component returned: @{[ $unloaded ? 'ok' : 'FAIL' ]} ($unloaded)\n" );
+		$unload_progress &&= ( $unloaded ? 1 : 0 );
 	}
 	
-	$q->report( ":: end unload stage ::\n" );
-	
-	
-# V. SENDING RESPONSE
-	#$q->env( 'request_stage'=> _respond_stage() );
-	$q->env( 'request_stage' => 'response' );
+	return 1 if $unload_progress;
+	return 0;
+}
 
+
+sub _process_request_stage_response
+{
+	my( $q );
+	my( $return_debug, $debug_param, $debug_value, %renderer_params );
+	
+	$q = shift();
+	
 # Set response to debug report if:
 #  - config is set to allow it, AND
 #  - session is set to allow it OR permissive setting in config is ON, AND
@@ -2296,27 +3203,50 @@ sub process_request
 # Note, as components are unloaded, calls are made to env component member stores.
 	if ( $q->env( 'http_debug:allow' ) )
 	{
-		my( $debug_param, $debug_value );
-		
-		$debug_param = 'request:' . $q->env( 'http_debug:request_param' );
-		$debug_value = $q->env( 'http_debug:request_value' );
-		
 		$q->report( 'Checking whether to send debug report to client..' );
+		
 		$return_debug = 0;
+# Preliminary check, for user permission.
 		$return_debug = 1 if $q->env( 'session:permission:http_debug' );
 		$return_debug = 1 if $q->env( 'http_debug:allow_public' );
-		#$return_debug &&= ( $q->env( $debug_param ) eq $debug_value ) if $q->env( $debug_param );
-		$return_debug &&= ( ! $q->response( 'body' ) || ( ( $q->env( $debug_param ) || "\0" ) eq $debug_value ) );
+		$q->report( "  user permitted:   @{[ $return_debug ? 'yes' : 'no' ]}" );
 		
+# If user is allowed, check request conditions:
+# response body missing, or deliberately requested with correct URI parameter.
 		if ( $return_debug )
 		{
-			$q->report( 'Returning debug report to client.' );
+			$return_debug = 0;
+			$return_debug = 1 if ! $q->response( 'body' );
+			$q->report( "  no response body: @{[ $return_debug ? 'no body' : 'body rendered' ]}" );
+			
+			$debug_param = ( $q->env( 'http_debug:request_param' ) || '' );
+			$debug_value = ( $q->env( 'http_debug:request_value' ) || '' );
+			
+			if ( $debug_param && $debug_value )
+			{
+				$return_debug = 1 if ( $q->env( "request:$debug_param" ) || "\0" ) eq $debug_value;
+				$q->report( "  user requested:   @{[ $return_debug ? 'yes' : 'no' ]}" );
+			}
+		}
+		
+# Return debug report.
+		if ( $return_debug )
+		{
+			$q->report( 'Rendering debug report for client.' );
+			$q->env( 'returned_http_debug_report' => 1 );
 			
 			%renderer_params = $q->env( 'renderer_parameters' );
 			$renderer_params{ 'view_start' } = $q->env( 'http_debug:view' );
-			$renderer_params{ 'sources' } = [ $q->env( 'view_store' ) ];
+			$renderer_params{ 'sources' }    = [ $q->env( 'view_store' ) ];
 			$renderer_params{ 'run_report' } = $q->captured_output;
-			$renderer_params{ 'errors' } = [ $q->captured_errors ];
+			$renderer_params{ 'errors' }     = [ $q->captured_errors ];
+			
+			no strict 'refs';
+			local *{ 'Qoan::View' . '::qoan' } = sub {
+				local *__ANON__ = 'controller_access_closure_view';
+				shift() if ref( $_[ 0 ] );
+				return $q->_method( @_ ); };
+			use strict 'refs';
 			
 			$q->response( 'body' => $q->view_render( %renderer_params ) );
 			$q->response( 'header:content-type' => 'text/html' );
@@ -2324,45 +3254,26 @@ sub process_request
 	}
 	
 # Send response, unless caller has indicated it will do it.
-	unless ( $q->env( 'delay_response' ) )
+# Note that following calls to report will not appear in HTTP debug response.
+	if ( ! $q->env( 'delay_response' ) )
 	{
+		$q->report( 'Returning response.' );
 		$q->env( 'response_sent' => $q->send_response );
 	}
+	else
+	{
+		$q->report( 'Response set to delay (application is expected to handle).' );
+	}
 	
-# VI. COMPLETED  Flag request as handled.
-	#$q->env( 'request_stage' => _finished() );
-	$q->env( 'request_stage' => 'finished' );
-	
-# Reset logging environment to normal if logging was redirected in this subroutine.
-	$q->capture_output if $q->env( 'stderr_redirected_in_request_handler' );
-	
-# Admin alerts for requests handled with errors.
-# Does not send alert if debug report was returned to client.
-	$q->_error_alert if $q->captured_errors && $q->env( 'alert_on_error' ) && ! $return_debug;
-	#if ( $q->captured_errors && $q->env( 'alert_on_error' ) && ! $return_debug )
-	#{
-	#	if ( $q->env( 'alert_on_error:errorlog' ) )
-	#	{
-	#		$q->flush_captured;
-	#	}
-	#	
-	#	if ( $q->env( 'alert_on_error:email' ) )
-	#	{
-	#		my( $sent, %email_parts );
-	#		
-	#		$email_parts{ 'body' } = $q->captured_output;
-	#		$email_parts{ 'from' } = $q->env( 'alert_on_error:email:from' );
-	#		$email_parts{ 'to' } = $q->env( 'alert_on_error:email:to' );
-	#		$email_parts{ 'subject' } = $q->env( 'alert_on_error:email:subject' );
-	#		
-	#		$q->load_helper( 'Qoan::Helper::' . $q->env( 'alert_on_error:email:helper' ) );
-	#		$sent = $q->_send_email( %email_parts );
-	#		
-	#		warn( "Error alert email failed to send." ) unless $sent;
-	#	}
-	#}
-	
-	return $q->ok;
+	return 1 if $q->env( 'delay_response' );
+	return 1 if $q->env( 'response_sent' );
+	return 0;
+}
+
+
+sub _process_request_stage_cleanup
+{
+	return 1;
 }
 
 
@@ -2401,8 +3312,9 @@ sub publish
 # can write to the publish list.
 # External b)
 	return unless $q->_allowed_caller(
-		'eq' => [ 'Qoan::Controller::process_request', $q->app_package ],
-		'=~' => [ '^Qoan::Interface::' ] );
+		#'eq' => [ 'Qoan::Controller::process_request' ],
+		'eq' => [ 'Qoan::Controller::process_request', map { $_ . '::_process_request_stage_action' } $q->env( 'protected' ) ],
+		'=~' => [ '^Qoan::Interface::\w+' ] );
 	
 	%writing = @_;
 	$caller = ( caller( 1 ) )[ 3 ];
@@ -2668,7 +3580,11 @@ sub response
 		
 # External a)
 		$called_by_req_handler = $q->_allowed_caller(
-			'eq' => [ 'Qoan::Controller::process_request' ], 'suppress_alerts' => 1 );
+			#'eq' => [ 'Qoan::Controller::process_request' ], 'suppress_alerts' => 1 );
+			'eq' => [ 'Qoan::Controller::process_request', ( map { $_ . '::_process_request_stage_render' } $q->env( 'protected' ) ),
+				  ( map { $_ . '::_process_request_stage_response' } $q->env( 'protected' ) )
+			],
+			'suppress_alerts' => 1 );
 		
 # Only main request handler may set the response body and status.
 		unless ( $called_by_req_handler  )
@@ -2686,6 +3602,7 @@ sub response
 		
 # Also insert headers into functional env (for convenient reference w/ other env values).
 		$headers{ $_ } = $to_write{ $_ } for grep { /^headers/ } keys %to_write;
+		
 # External b)
 		$q->env( %headers ) if %headers;
 		
@@ -2768,12 +3685,15 @@ sub send_response
 	
 # External a)
 	return unless $q->_allowed_caller(
-		'eq' => [ 'Qoan::Controller::process_request', $q->app_package ] );
+		#'eq' => [ 'Qoan::Controller::process_request', $q->app_package ] );
+		'eq' => [ 'Qoan::Controller::process_request', map { $_ . '::_process_request_stage_response' } $q->env( 'protected' ), $q->app_package ] );
 	
 # External b)
 	unless ( $q->env( 'response_sent' ) )
 	{
 # External c)
+# WHY THE FUCK DOES STAGED NEED THIS FLATTENED??
+		#%response = $q->_flatten( $q->response );
 		%response = $q->response;
 		%headers = $response{ 'headers' } if $response{ 'headers' };
 		
@@ -2803,6 +3723,20 @@ sub send_response
 }
 
 
+sub set_view
+{
+	my( $q, $view );
+	
+	$q = shift();
+	$view = shift();
+	
+	$q->env( 'render_view' => $view );
+	
+	return 1 if $q->env( 'render_view' ) eq $view;
+	return 0;
+}
+
+
 # Purpose:  Destroys component object.
 # Context:  sub process_request only
 # Receives: 1) controller ref
@@ -2823,7 +3757,8 @@ sub _unload_component
 	$component = lc( shift() );
 	
 # External a)
-	return unless $q->_allowed_caller( 'eq' => [ 'Qoan::Controller::process_request' ] );
+	#return unless $q->_allowed_caller( 'eq' => [ 'Qoan::Controller::process_request' ] );
+	return unless $q->_allowed_caller( 'eq' => [ 'Qoan::Controller::process_request', map { $_ . '::_process_request_stage_unload' } $q->env( 'protected' ) ] );
 	
 # External b)
 	%component = $q->env( "component:$component" );
@@ -2831,7 +3766,7 @@ sub _unload_component
 	
 # If there's nothing to unload, then return success.
 # External c)
-	unless ( $q->$accessor )
+	unless ( $q->can( $accessor ) && defined( $q->$accessor ) )
 	{
 # External d)
 		$q->report( 'No object to unload.' );

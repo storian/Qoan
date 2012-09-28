@@ -35,7 +35,7 @@ sub _send_email
 			'Subject' => $email_parts{ 'subject' } ],
 		'body' => $email_parts{ 'body' } );
 	
-	$controller->bypass_print( $email->as_string );
+	#$controller->bypass_print( $email->as_string );
 	
 # Can't use this since we can't use Email::Sender.
 	#$ok = 1 if Email::Sender::Simple->try_to_send( $email );
