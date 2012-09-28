@@ -1,0 +1,28 @@
+
+#[  SETTINGS FOR ALL DYSGASMIA APPS, local configs can override.
+
+uri_source_header : redirect_url
+
+
+directory:
+  css : /home/public/css/
+  js  : /home/public/js/
+  tmp : /home/tmp/
+
+
+http_debug:
+  request_param : debug
+  request_value : http
+  view          : debug_report
+
+
+alert_on_error:
+  email:
+    from    : Dysgasmia Qoan <administrator@dysgasmia.net>
+    to      : sean.standish@gmail.com
+    subject : Error on Qoan Request Handling
+    helper  : SendEmail
+  suppress:
+    #- 'Subroutine Qoan::Controller::_view_cleanup redefined at /home/protected/Qoan/Interface.pm line 116.'
+    #- 'Filehandle STDERR reopened as HEYA only for input at /home/protected/Qoan/Logger.pm line 167.'
+    #- 'Subroutine main::controller redefined at /home/protected/Qoan/RequestManager.pm line 471.'

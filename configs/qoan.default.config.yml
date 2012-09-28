@@ -1,0 +1,285 @@
+
+#[  QOAN DEFAULT CONFIG FILE
+#[
+
+
+#[ DEFAULT SETTINGS
+#[  The following defaults are coded into the Qoan controller and do not
+#[  need to be uncommented here to use the values displayed.
+
+#[  REQUEST STAGES are the stages of request handling.  They are:
+#[   prestart: before handling starts
+#[   route: request URI is evaluated and action manager/action requested determined
+#[   load: supporting components loaded
+#[   action: requested action executed
+#[   render: view determined and rendered
+#[   unload: supporting components unloaded
+#[   response: response sent to client
+#[   cleanup: cleanup routines executed
+#[   finished: handling completed
+
+#request_stages:
+#  - prestart
+#  - route
+#  - load
+#  - action
+#  - render
+#  - unload
+#  - response
+#  - cleanup
+#  - finished
+
+
+#[  ACTION_STAGES are the stages of processing for a request's Action request stage.
+#[   identify determines the action routine to use;  MOVED TO ROUTE REQUEST STAGE.
+#[   check executes zero or more environmental checks or setup routines;
+#[   execute runs the action routine proper;
+#[   cleanup is to run after the action.
+
+#action_stages:
+#  - check
+#  - execute
+#  - cleanup
+
+
+#[  COMPONENT/"SERVER" LOAD ORDER.
+#[  The order in which components load in the Load request stage.
+#component_load_order:
+#  - request
+#  - session
+#  - user
+
+#[  By default, components unload in reverse load order.
+#component_unload_order:
+#  - user
+#  - session
+#  - request
+
+#[  "Server" is the term for a component that is loaded on script start.  This makes
+#[  these components "pre-request", and thus the same from request to request.  This
+#[  includes the configuration handler.  There is no corresponding Server Unload Order.
+#[  Note that the config tool always loads first, and so is ignored in Server Load Order.
+#server_load_order:
+#  - logger
+#  - view
+
+
+#[  URI SOURCE HEADER is the header Qoan checks for the request URI.  It can change
+#[  depending on how your site uses web server routing/redirection.
+
+#uri_source_header: request_uri
+
+
+#[  QOAN VIEW STORE is the default location of shared views.  Qoan checks this
+#[  location last when searching for a view file.  Note that this path is
+#[  relative to the Qoan install directory, not the app install directory.
+
+#qoan_view_store: views/shared/
+
+
+#[  SESSION ID VARIABLE/USER ID VARIABLE are the names (keys) for the session ID
+#[  stored in the request cookie, and for the user ID stored in the session record,
+#[  respectively.
+
+#sessionid_variable : qoan_session
+#userid_variable    : qoan_user
+
+
+#[  QOAN STARTED is the startup time (not the request handling time) for the script.
+#[  Obviously, you should not set this with the config file; it is mentioned here
+#[  for documentation purposes.
+
+#qoan_started:  time()
+
+
+#[  CLOSURE ACCESSORS are the routines allowed to call the main Qoan closure object.
+#[  Any routine not in the list calling the main closure will raise an error.
+#[  Note that the routines are explicitly linked to their packages.
+#[   action_map: access to the list of allowed actions and associated settings
+#[   clipboard: allows components to exchange data that we don't want in the env
+#[   component: access to components and component settings
+#[   env: access to functional env
+#[   ok: access to 'ok' setting in env, which holds status of request handling
+#[   publish: access to list of component-accessible controller routines
+#[   response: access to response to be sent to client
+
+#closure_accessors:
+#  - Qoan::Controller::action_map
+#  - Qoan::Controller::clipboard
+#  - Qoan::Controller::component
+#  - Qoan::Controller::env
+#  - Qoan::Controller::ok
+#  - Qoan::Controller::publish
+#  - Qoan::Controller::response
+
+
+#[  PUBLISH sets specific Qoan controller routines as callable by external components,
+#[  e.g. the view component or the action manager.  In these settings, the key is
+#[  the method alias (which the component will use), and the value is the name of the
+#[  controller method.
+#[  By default, the AM gets access to clipboard, env, response, and set_view.
+#[  The view renderer gets access to clipboard and env.
+#[  Removing any of these defaults will result in greater restriction on the component.
+
+#publish:
+#  action_manager:
+#    clipboard: clipboard
+#    env: env
+#    response: response
+#    set_view: set_view
+#  view:
+#    clipboard: clipboard
+#    env: env
+
+
+#[  COMPONENT.  This contains settings for the loading of components, including "servers".
+#[  Per component:
+#[   module: the Perl module that defines the component object
+#[   interface: the Perl module that interfaces between the object and Qoan
+#[   store: the location where object source files reside
+#[   constructor: the module instantiation routine name, in case it isn't "new"
+#[   init: settings passed to the object instantiation routine.  Usually set up dynamically
+#[   on_load: "interface_only" means not to instantiate the object (it will happen later)
+
+#component:
+#  request:
+#    module    : CGI::Minimal
+#    interface : Qoan::Interface::IRequest_CGIMinimal
+
+# NOTE  the session store path is wrong; it should include the tmp dir path.
+# Set here as a placeholder.  Set again after config file load.
+#  session:
+#    module    : Qoan::Model::Minicache
+#    interface : Qoan::Interface::ISession_QoanModelMinicache
+#    store     : sessions/
+
+#  user:
+#    module    : Qoan::Model::Minicache
+#    interface : Qoan::Interface::IUser_QoanModelMinicache
+#    store     : users/
+
+#  view:
+#    module    : Qoan::View
+#    interface : Qoan::Interface::IView_QoanView
+#    store     : views/
+
+#  config:
+#    #module    : Qoan::Config
+#    module    : YAML::Tiny
+#    interface : Qoan::Interface::IConfig_YAMLTiny
+
+#  logger:
+#    module    : Qoan::Logger
+#    #interface : 
+
+#  #request_manager:
+#  #  module    : Qoan::RequestManager
+
+
+#[  ALLOW DEFAULT GET ACTION
+#[  For simple apps, Qoan provides a default get action.  This setting activates it.
+#[  Off by default.
+#[  You can also redefine the default get action map.
+
+#allow_default_get_action: 0
+#default_get_action_map:
+#  default_action : get
+#  default_view   : index
+#  get:
+#    route: /:view
+
+
+
+#[  OTHER SETTINGS (not in default setup)
+
+#[  DIRECTORY holds system paths used by Qoan.
+#directory:
+#  css : 
+#  js  : 
+#  tmp : 
+
+
+#[  HTTP DEBUG are settings allowing a user to request a debug report via the client.
+#[  You can set the HTTP parameter name, the accepted value, and the view returned.
+#[  There are also to activation settings, one to turn the report on, the other to
+#[  allow an anonymous user to request it.  Off by default.
+#http_debug:
+#  request_param : 
+#  request_value : 
+#  view          : 
+#  allow         : 0
+#  allow_public  : 0
+
+
+#[  ALERT ON ERROR sets how Qoan will alert an administrator of any error.
+#alert_on_error:
+#  email:
+#    from    : 
+#    to      : 
+#    subject : Error on Qoan Request Handling
+#    helper  : SendEmail
+
+#[  ALERT_ON_ERROR:SUPPRESS is a list of error messages for issues which aren't/can't be fixed,
+#[  but for which you don't want alerts.
+#[  Note that Suppress is beneath Alert_On_Error (iow accessible as: "alert_on_error:suppress").
+#  suppress:
+    #- 'Subroutine Qoan::Controller::_view_cleanup redefined at /home/protected/Qoan/Interface.pm line 116.'
+    #- 'Filehandle STDERR reopened as HEYA only for input at /home/protected/Qoan/Logger.pm line 167.'
+    #- 'Subroutine main::controller redefined at /home/protected/Qoan/RequestManager.pm line 471.'
+
+
+#[  RENDERER PARAMETERS hold default parameters passed to the renderer on view render
+#[  (not on instantiation).
+#[  The current settings are for
+
+#renderer_parameters:
+#  cache_expiration : 10  # minutes
+#  max_passes : 15
+
+
+#[  DEFAULT VIEW is the view used by the Request Manager should the action's view determination
+#[  fail in some way.
+
+#default_view   : ???
+
+
+#[  DEFAULT ROUTE is the regular expression used to determine the requested action
+#[  manager when the list of action manager routes is not populated.
+#[  The request manager turns :string_name into (\w+).
+
+#default_route: ^/?:action_manager/:action
+
+
+#[  PROTECTED is a list of packages which are given security status "protected".
+#[  These default to the RequestManager package; and, dynamically determined, the
+#[  class of the controller object, which can be of another class, e.g. the Controller
+#[  class or an inheriting class.
+
+#protected:
+#  - Qoan::RequestManager
+#  - Qoan::Controller
+
+
+#[  ACTION MANAGER ROUTES is a list of regular expressions used by the
+#[  Request Manager to determine which action manager the request is for,
+#[  if the execute action stage begins and no action map is loaded.
+
+#action_manager_routes:
+#  action_manager_module : regular_expression  # FORMAT
+#  Cart : ^/?shopping_cart
+
+
+
+#[  Other settings ??
+#
+#  view_cache (empty == false)
+#  view_cache_namespace (Qafe_Controller_Views)
+#  view_cache_default_expiration (10 min)
+#  object_cache (empty == false)
+#  object_cache_namespace (Qafe_Controller_Objects)
+#  object_cache_default_expiration (10 min)
+
+#  use_internal_warning_handler (1)
+#  use_internal_die_handler (1)
+#  warning_handler (_handler_warn)
+#  die_handler (_handler_die)
