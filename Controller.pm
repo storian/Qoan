@@ -1,4 +1,3 @@
-
 package Qoan::Controller;
 
 # Qoan::Controller
@@ -291,8 +290,15 @@ sub _action_execute
 	$q = shift();
 	$exec_ok = 0;
 	
-	$manager = $q->env( 'action_manager:name' );
-	$action = $q->env( 'action:name' );
+	$manager = $q->env( 'action_manager:name' ) || '';
+	$action = $q->env( 'action:name' ) || '';
+	
+# Check for action but do not raise an error if none.
+	unless ( $action )
+	{
+		$q->report( 'No action specified.' );
+		return 1;
+	}
 	
 # Verify action exists in map.
 	unless ( $q->action_map( $action ) )
@@ -366,6 +372,7 @@ sub _action_identify
 	
 	$q = shift();
 	$i = 0;
+	$identified = '';
 	
 	if ( %map = $q->action_map )
 	{
@@ -941,27 +948,28 @@ sub _error_alert
 	}
 	
 # External c)
-	if ( %aoe_email = $q->env( 'alert_on_error:email' ) )
-	{
-		my( $sent, %email_parts );
-		
+	return unless %aoe_email = $q->env( 'alert_on_error:email' );
+	
+	my( $sent, %email_parts );
+	
 # External d)
-		$email_parts{ 'body' } = $q->captured_output;
-		
-		#$email_parts{ 'from' } = $q->env( 'alert_on_error:email:from' );
-		#$email_parts{ 'to' } = $q->env( 'alert_on_error:email:to' );
-		#$email_parts{ 'subject' } = $q->env( 'alert_on_error:email:subject' );
-		$email_parts{ 'from' } = $aoe_email{ 'from' };
-		$email_parts{ 'to' } = $aoe_email{ 'to' };
-		$email_parts{ 'subject' } = $aoe_email{ 'subject' };
-		
-		$q->load_helper( 'Qoan::Helper::' . $aoe_email{ 'helper' } );
+	$email_parts{ 'body' } = $q->captured_output;
+	
+	#$email_parts{ 'from' } = $q->env( 'alert_on_error:email:from' );
+	#$email_parts{ 'to' } = $q->env( 'alert_on_error:email:to' );
+	#$email_parts{ 'subject' } = $q->env( 'alert_on_error:email:subject' );
+	$email_parts{ 'from' } = $aoe_email{ 'from' };
+	$email_parts{ 'to' } = $aoe_email{ 'to' };
+	$email_parts{ 'subject' } = $aoe_email{ 'subject' };
+	
+	$q->load_helper( 'Qoan::Helper::' . $aoe_email{ 'helper' } );
 # External e)
-		$sent = $q->_send_email( %email_parts );
-		
+  # Can we change "_send_email" to a settings-defined string?
+  # Thus we could change the default mail sub for the Controller.
+	$sent = $q->_send_email( %email_parts );
+	
 # External f)
-		warn "Error alert email failed to send." unless $sent;
-	}
+	warn "Error alert email failed to send." unless $sent;
 }
 
 
@@ -1699,9 +1707,12 @@ sub new_request
 		}
 		
 # Return last index's value.
-		return %{ $loc->{ $index } } if ref( $loc->{ $index } ) eq 'HASH';
-		return @{ $loc->{ $index } } if ref( $loc->{ $index } ) eq 'ARRAY';
-		return $loc->{ $index } if exists ${ $loc }{ $index };
+		if ( $index )
+		{
+			return %{ $loc->{ $index } } if ref( $loc->{ $index } ) eq 'HASH';
+			return @{ $loc->{ $index } } if ref( $loc->{ $index } ) eq 'ARRAY';
+			return $loc->{ $index } if exists ${ $loc }{ $index };
+		}
 # Return zero-len string if non-existent value requested (stops "uninitialized" warnings).
 # NOTE, not using this currently.
 		#return '' if $index;
@@ -1817,11 +1828,12 @@ sub ok
 sub process_request
 {
 	#my( $q );
-	my( $q, $stage, $handler, $stage_result, $stderr_redirected );
+	my( $q, $action_name, $stage, $handler, $stage_result, $stderr_redirected );
 	
 	$stderr_redirected = 0;
 	
 	$q = shift();
+	$action_name = $q->env( 'action:name' ) || '';
 	
 # PREP STUFF FOR STAGE LOOP HERE (from current version of process_request)
 	# ??
@@ -1871,7 +1883,7 @@ sub process_request
 		}
 		
 # For "client resource" requests (css, js, etc), load only the request component.
-		$q->env( 'component_load_order' => [ 'request' ] ) if $q->env( 'action:name' ) eq 'client_resource';
+		$q->env( 'component_load_order' => [ 'request' ] ) if $action_name eq 'client_resource';
 		
 		$q->report( ":: end $stage stage ::\n\n" );
 	}
@@ -2911,17 +2923,18 @@ sub _process_request_stage_load
 sub _process_request_stage_action
 {
 	my( $q );
-	my( $am_package, $am_loaded );
+	my( $am_package, $am_loaded, $action_name );
 	my( $stage_ok, $action_stage, $action_ok );
 	my( $render_view, $view_source );
 	
 	$q = shift();
 	
-	$am_package = $q->env( 'action_manager:name' );
+	$am_package = $q->env( 'action_manager:name' ) || '';
 	$am_loaded = defined( $am_package ) ? 1 : 0;
+	$action_name = $q->env( 'action:name' ) || '';
 	
 # Set component-accessible controller routines from env.
-	$q->publish( $q->_flatten( $q->env( 'publish' ) ) ) unless $q->env( 'action:name' ) eq 'client_resource';
+	$q->publish( $q->_flatten( $q->env( 'publish' ) ) ) unless $action_name eq 'client_resource';
 	
 # Set up controller accessor for Action Manager code.
 # Note, this is done if the Action Manager is loaded, which means NOT for
@@ -3011,13 +3024,14 @@ sub _process_request_stage_action
 sub _process_request_stage_render
 {
 	my( $q );
-	my( $render_view, $view_source, $view_exists, %renderer_params );
+	my( $render_view, $action_name, $view_source, $view_exists, %renderer_params );
 	
 	$q = shift();
 	
 	$q->report( ":: selecting view ::\n" );
 	
 	$render_view = $q->env( 'render_view' );
+	$action_name = $q->env( 'action:name' ) || '';
 	
 # Special case for internal get??
 # Ideally, the following if-block (as is) should handle this.
@@ -3027,19 +3041,22 @@ sub _process_request_stage_render
 	#}
 	
 # Client Resource (internal).
-	if ( $q->env( 'action:name' ) eq 'client_resource' )
+	if ( $action_name eq 'client_resource' )
 	{
 		
 		$render_view  = $q->env( 'client_resource_action:store' ) . ':';
+		$render_view .= $q->env( 'uri:resource_type' ) . ':';
 		$render_view .= $q->env( 'uri:resource_name' ) || $q->env( 'uri:alias:private' ); # . '.';
-		$render_view .= '_' . $q->env( 'uri:resource_type' );
+		
+		$q->response( 'header:content-type' => 'image/jpeg' ) if $render_view =~ m|jpe?g$|;
+		
 		$view_source = 'client resource request';
 	}
 	
 # From action section of action map (action name).
-	if ( ! $render_view && $q->env( 'action:name' ) )
+	if ( ! $render_view && $action_name )
 	{
-		$render_view = $q->action_map( $q->env( 'action:name' ) . ':view' );
+		$render_view = $q->action_map( $action_name . ':view' );
 		$view_source = 'supplied by action' if $render_view;
 	}
 	
@@ -3240,13 +3257,16 @@ sub _process_request_stage_response
 			$renderer_params{ 'sources' }    = [ $q->env( 'view_store' ) ];
 			$renderer_params{ 'run_report' } = $q->captured_output;
 			$renderer_params{ 'errors' }     = [ $q->captured_errors ];
+			$renderer_params{ 'env' }        = { $q->env };
 			
-			no strict 'refs';
-			local *{ 'Qoan::View' . '::qoan' } = sub {
-				local *__ANON__ = 'controller_access_closure_view';
-				shift() if ref( $_[ 0 ] );
-				return $q->_method( @_ ); };
-			use strict 'refs';
+#			no strict 'refs';
+#			local *{ 'Qoan::View' . '::qoan' } = sub {
+#				local *__ANON__ = 'controller_access_closure_view';
+#				shift() if ref( $_[ 0 ] );
+#				print "from debug: @_";
+#				return $q->_method( @_ );
+#			};
+#			use strict 'refs';
 			
 			$q->response( 'body' => $q->view_render( %renderer_params ) );
 			$q->response( 'header:content-type' => 'text/html' );
@@ -3679,7 +3699,7 @@ sub _route_compare
 #
 sub send_response
 {
-	my( $q, %response, %headers, @headers, $header_name );
+	my( $q, %response, @headers, $header_name );
 	
 	$q = shift();
 	
@@ -3695,7 +3715,9 @@ sub send_response
 # WHY THE FUCK DOES STAGED NEED THIS FLATTENED??
 		#%response = $q->_flatten( $q->response );
 		%response = $q->response;
-		%headers = $response{ 'headers' } if $response{ 'headers' };
+# This line raised an error and it seems %headers is not being used.
+# To correct code, wrap $response{ 'headers' } in %{ };
+		#%headers = $response{ 'headers' } if $response{ 'headers' };
 		
 		$response{ 'status' } ||= "HTTP/1.0 200 OK";
 # External d)

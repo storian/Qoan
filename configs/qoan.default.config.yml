@@ -201,7 +201,7 @@
 
 #[  HTTP DEBUG are settings allowing a user to request a debug report via the client.
 #[  You can set the HTTP parameter name, the accepted value, and the view returned.
-#[  There are also to activation settings, one to turn the report on, the other to
+#[  There are also two activation settings, one to turn the report on, the other to
 #[  allow an anonymous user to request it.  Off by default.
 #http_debug:
 #  request_param : 

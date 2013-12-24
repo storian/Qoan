@@ -450,7 +450,9 @@ sub _fetch_view
 	if ( $view{ 'evalme' } )
 	{
 # External h)
-		$view{ 'text' } = $renderer->_eval_view( 'name' => $name, 'params' => $params, %view );
+		$view{ 'text' } = $renderer->_eval_view(
+			'name' => $name, 'inserting' => ( $insert ? 1 : 0 ),
+			'params' => $params, %view );
 	}
 	
 # This is to provide a line break between views for the Qoan controller report.
@@ -493,13 +495,14 @@ sub _eval_view
 {
 	return unless ( caller( 1 ) )[ 3 ] eq 'Qoan::View::_fetch_view';
 	
-	my( $renderer, %view, @params, $evaled );
+	my( $renderer, %view, $inserting, @params, $evaled );
 # These lexicals prevent access by the eval'ed views to the package lexicals
 # of the same names.
 	my( %cache, %cache_cfg );
 	
 	$renderer = shift();
 	%view = @_;
+	$inserting = $view{ 'inserting' };
 	@params = split( /,/, $view{ 'params' } );
 	
 # External a)

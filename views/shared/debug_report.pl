@@ -11,7 +11,8 @@ $http_report =~ s|\n(\s*::[^\n]*)\n|\n<font color="blue">$1</font>\n|gs;
 $http_report =~ s@\n([^\n]*(?:warn|fail)[^\n]*)\n@\n<font color="red">$1</font>\n@igs;
 
 # Getting this here because $friendly_time needs it.
-%env = $renderer->qoan( 'env' );
+#%env = $renderer->qoan( 'env' );
+%env = %{ $renderer->get_cfg( 'env' ) };
 
 # Friendly timestamp, format e.g.: 2013 Jan 15 (Tue) 21:47:38 GMT
 use POSIX;

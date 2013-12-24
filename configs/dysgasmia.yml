@@ -15,6 +15,11 @@ http_debug:
   request_value : http
   view          : debug_report
 
+email_debug:
+  request_param : debug
+  request_value : email
+  view          : debug_report
+
 
 alert_on_error:
   email:
