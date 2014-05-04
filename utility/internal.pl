@@ -14,10 +14,12 @@ BEGIN
 	$qoan_path =~ s|/Qoan/utility/internal.pl$||;
 	$cfg_path = $qoan_path . '/Qoan/configs/';
 	$view_path = $qoan_path . '/Qoan/views/';
+
+	print STDERR "internal app code: $app_code\n";
 }
 
 use Qoan::Controller (
-	'app_config' => "$cfg_path$app_code.config",
+	'app_config' => "$cfg_path$app_code.yml",
 	'component:view:store' => "$view_path$app_code/" );
 
 Qoan::Controller->process_request;

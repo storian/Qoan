@@ -74,7 +74,7 @@ BEGIN
 		local *__ANON__ = 'base_closure';
 		my( $store, $k, $v, @keypath, $index, $loc, $i );
 		
-# Only env may access the base closure.
+# Only env and publish may access the base closure.
 		return unless __PACKAGE__->_allowed_caller( 'eq' => [ 'Qoan::Controller::env', 'Qoan::Controller::publish' ] );
 		
 		$store = \%env_base;
@@ -2930,7 +2930,7 @@ sub _process_request_stage_action
 	$q = shift();
 	
 	$am_package = $q->env( 'action_manager:name' ) || '';
-	$am_loaded = defined( $am_package ) ? 1 : 0;
+	$am_loaded = $am_package ? 1 : 0;
 	$action_name = $q->env( 'action:name' ) || '';
 	
 # Set component-accessible controller routines from env.
